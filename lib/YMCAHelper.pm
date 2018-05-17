@@ -15,6 +15,7 @@ our @EXPORT_OK = qw(
   make_workbook
   write_record
   split_values
+  map_values
   make_record
 );
 
@@ -25,6 +26,7 @@ our @EXPORT = qw(
   make_worksheet
   write_record
   split_values
+  map_values
   make_record
 );
 
@@ -72,6 +74,21 @@ sub write_record {
   for(my $i = 0; $i < scalar(@{$record}); $i++) {
     $worksheet->write($row, $i, $record->[$i]);
   }
+}
+
+sub map_values {
+  my $headers = shift;
+  my $values = shift;
+
+  my $mapped = {};
+
+  die "header/value mismatch" unless (scalar(@{$headers}) == scalar(@{$values}));
+
+  for(my $i = 0; $i < scalar(@{$headers}); $i++) {
+    $mapped->{$headers->[$i]} = $values->[$i];
+  }
+
+  return $mapped;
 }
 
 sub split_values {

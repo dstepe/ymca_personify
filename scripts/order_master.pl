@@ -9,21 +9,22 @@ use YMCAHelper;
 use File::Slurp;
 use Data::Dumper;
 use Excel::Writer::XLSX;
+use Text::CSV;
 
 my $templateName = 'DCT_ORDER_MASTER-42939';
 
 my $orderNo = 1000000000;
 
 my $columnMap = {
-  'ORDER_NO'                      => { 'type' => 'record', 'source' => 'orderNo' },
-  'ORDER_DATE'                    => { 'type' => 'record', 'source' => 'joinDate' },
+  'ORDER_NO'                      => { 'type' => 'record', 'source' => 'OrderNo' },
+  'ORDER_DATE'                    => { 'type' => 'record', 'source' => 'NextBillDate' },
   'ORG_ID'                        => { 'type' => 'static', 'source' => 'GMVYMCA' },
   'ORG_UNIT_ID'                   => { 'type' => 'static', 'source' => 'GMVYMCA' },
-  'BILL_CUSTOMER_ID'              => { 'type' => 'record', 'source' => 'billableId' },
+  'BILL_CUSTOMER_ID'              => { 'type' => 'record', 'source' => 'MemberId' },
   'BILL_ADDRESS_TYPE_CODE'        => { 'type' => 'static', 'source' => 'HOME' },
-  'SHIP_CUSTOMER_ID'              => { 'type' => 'record', 'source' => 'memberId' },
+  'SHIP_CUSTOMER_ID'              => { 'type' => 'record', 'source' => 'MemberId' },
   'ORDER_STATUS_CODE'             => { 'type' => 'static', 'source' => 'A' },
-  'ORDER_STATUS_DATE'             => { 'type' => 'record', 'source' => 'statusDate' },
+  'ORDER_STATUS_DATE'             => { 'type' => 'record', 'source' => 'StatusDate' },
   'APPLICATION'                   => { 'type' => 'static', 'source' => 'ORD001' },
   'FND_GIVE_EMPLOYER_CREDIT_FLAG' => { 'type' => 'static', 'source' => 'N' },
   'POS_FLAG'                      => { 'type' => 'static', 'source' => 'N' },
@@ -56,18 +57,6 @@ my @skipTypes = (
   'Trade HC Upgrade Two Adult HC',
 );
 
-# Read in billable family member data
-my $billableFamilyMembers = {};
-open(my $in, '<', 'data/billable members.txt')
-  or die "Couldn't open data/billable members.txt: $!";
-<$in>; # eat the headers
-while (<$in>) {
-  chomp;
-  my($memberId, $familyId) = split("\t");
-  $billableFamilyMembers->{$familyId} = $memberId;
-}
-close($in);
-
 my @allColumns = get_template_columns($templateName);
 
 my $workbook = make_workbook($templateName);
@@ -75,39 +64,54 @@ my $worksheet = make_worksheet($workbook, \@allColumns);
 
 open(my $orderMaster, '>', 'data/order_master.txt')
   or die "Couldn't open data/order_master.txt: $!";
-print $orderMaster join("\t", @allColumns, 'NEXT_BILL_DATE', 'JOIN_DATE') . "\n";;
+print $orderMaster join("\t", @allColumns, 'MEMBERSHIP_TYPE', 
+  'PAYMENT_METHOD', 'RENEWAL_FEE', 'BRANCH_CODE', 'BRANCH_NAME',
+  'COMPANY_NAME', 'NEXT_BILL_DATE', 'JOIN_DATE', 'FAMILY_ID') . "\n";;
+
+my $csv = Text::CSV->new();
 
 my %types;
-open(my $membersFile, '<', 'data/all members.txt')
-  or die "Couldn't open data/all members.txt: $!";
-<$membersFile>; # eat the headers
+# Read in membership order data
+$/ = "\r\n";
 
-my $row = 1;
-while(<$membersFile>) {
-  chomp;
-  my $values = split_values($_, qw(memberId familyId type nextBillDate joinDate statusDate));
+open(my $orders, '<:encoding(UTF-8)', 'data/MemberShipOrders.csv')
+  or die "Couldn't open data/MemberShipOrders.csv: $!";
+my $headerLine = <$orders>;
+$csv->parse($headerLine) || die "Line could not be parsed: $headerLine";
+my @headers = $csv->fields();
 
-  $types{$values->{'type'}}++;
+my $order = 1;
+while(my $line = <$orders>) {
+  chomp $line;
 
-  next if (grep { $_ eq $values->{'type'} } @skipTypes);
+  $csv->parse($line) || die "Line could not be parsed: $line";
 
-  unless (exists($billableFamilyMembers->{$values->{'familyId'}})) {
-    print "Can't find billable ID for $values->{'memberId'}/$values->{'familyId'} "
-      . "$values->{'type'}\n";
-    next;
-  }
+  my $values = map_values(\@headers, [$csv->fields()]);
+  #print Dumper($values);exit;
 
-  $values->{'billableId'} = $billableFamilyMembers->{$values->{'familyId'}};
-  $values->{'orderNo'} = $orderNo++;
+  $types{$values->{'MembershipTypeDes'}}++;
+
+  next if (grep { $_ eq $values->{'MembershipTypeDes'} } @skipTypes);
+
+  $values->{'OrderDate'} = $values->{'NextBillDate'};
+  $values->{'StatusDate'} = $values->{'NextBillDate'};
+  $values->{'OrderNo'} = $orderNo++;
 
   my $record = make_record($values, \@allColumns, $columnMap);
-  write_record($worksheet, $row++, $record);
+  write_record($worksheet, $order++, $record);
 
-  print $orderMaster join("\t", @{$record}, $values->{'nextBillDate'}, $values->{'joinDate'}) . "\n";;
+  $values->{'RenewMembershipFee'} =~ s/[^0-9\.]//g;
+
+  print $orderMaster join("\t", @{$record}, $values->{'MembershipTypeDes'},
+    $values->{'PaymentMethod'}, $values->{'RenewMembershipFee'}, 
+    $values->{'BranchCode'}, $values->{'MembershipBranch'}, 
+    $values->{'CompanyName'},
+    $values->{'NextBillDate'}, $values->{'JoinDate'},
+    $values->{'FamilyId'}) . "\n";;
 
 }
 
-close($membersFile);
+close($orders);
 
 foreach my $type (sort keys %types) {
   print "$type\t$types{$type}\n";

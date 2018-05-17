@@ -10,6 +10,7 @@ use File::Slurp;
 use Data::Dumper;
 use Excel::Writer::XLSX;
 use Date::Manip;
+use Text::CSV;
 
 my $templateName = 'DCT_ORDER_DETAIL-32358';
 
@@ -102,9 +103,62 @@ my @orderMasterFields = qw(
   advAgencySubCustId
   employerCustomerId
   oldOrderNo
+  membershipType
+  paymentMethod 
+  renewalFee
+  branchCode
+  membershipBranch
+  companyName
   nextBillDate
   joinDate
+  familyId
 );
+
+my $taxRates = {
+  'Atrium' => .07,
+  'Other' => .065,
+};
+
+my $branchProgramCodes = {
+  'BTW Community Center' => 'BT',
+  'Middletown' => 'MD',
+  'Atrium' => 'AT',
+  'Fairfield Family' => 'FF',
+  'Fitton Family' => 'FT',
+  'East Butler' => 'EB',
+  'Hamilton Central' => 'HC'
+};
+
+$/ = "\r\n";
+
+my $csv = Text::CSV->new();
+
+my $membershipMap = {};
+open(my $map, '<:encoding(UTF-8)', 'data/MembershipMapping.csv')
+  or die "Couldn't open data/MembershipMapping.csv: $!";
+<$map>;
+while (my $line = <$map>) {
+  chomp $line;
+
+  $csv->parse($line) || die "Line could not be parsed: $line";
+
+  my @values = $csv->fields();
+
+  $membershipMap->{$values[1]} = {
+    'branch' => $values[0],
+    'paymentMethod' => $values[2],
+    'productCode' => $values[3],
+    'rateCode' => $values[4],
+    'marketCode' => $values[5],
+    'discountCode' => $values[6],
+    'discountAmount' => $values[7],
+    'purchasingGroup' => $values[8],
+    'discount' => $values[9],
+  };
+}
+close($map);
+
+$/ = "\n";
 
 my @allColumns = get_template_columns($templateName);
 
@@ -120,16 +174,54 @@ while(<$orderMaster>) {
   chomp;
   my $values = split_values($_, @orderMasterFields);
 
+  my $taxRate = $taxRates->{'Other'};
+
+  if (exists($taxRates->{$values->{'membershipBranch'}})) {
+    $taxRate = $taxRates->{$values->{'membershipBranch'}};
+  }
+
   my $nextBillDate = ParseDate($values->{'nextBillDate'});
-  $values->{'beginDate'} = UnixDate(DateCalc($nextBillDate, '+1 day'), '%Y-%m-%d');
-  $values->{'endDate'} = UnixDate(DateCalc($nextBillDate, '-1 day'), '%Y-%m-%d');
+  $values->{'beginDate'} = UnixDate($nextBillDate, '%Y-%m-%d');
+  my $cycle = $values->{'paymentMethod'} eq 'Annual' ? 'year' : 'month';
+  $values->{'endDate'} = UnixDate(DateCalc(DateCalc($nextBillDate, '+1 ' . $cycle), '-1 day'), '%Y-%m-%d');
 
   $values->{'trxInvoiceId'} = '';
   $values->{'productCode'} = '';
   $values->{'rateCode'} = '';
-  $values->{'totalAmount'} = '';
   $values->{'discountAmount'} = '';
-  $values->{'taxPaidAmount'} = '';
+
+  my $discount = '';
+  if (exists($membershipMap->{$values->{'membershipType'}})) {
+    my $map = $membershipMap->{$values->{'membershipType'}};
+
+    my $branchCode = $branchProgramCodes->{$values->{'membershipBranch'}};
+    
+    $values->{'productCode'} = $map->{'productCode'};
+    $values->{'rateCode'} = $map->{'rateCode'};
+    $values->{'discountCode'} = $map->{'discountCode'};
+    if (!$map->{'branch'}) {
+      $values->{'productCode'} =~ s/\{BRANCH\}/$branchCode/g;
+      $values->{'discountCode'} =~ s/\{BRANCH\}/$branchCode/g;
+    }
+
+    $discount = $map->{'discountAmount'};
+  }
+
+  $values->{'discountAmount'} = 0;
+  if ($discount =~ /\%/) {
+    $discount =~ s/\%//;
+    $discount /= 100;
+
+    $values->{'discountAmount'} = $values->{'renewalFee'} * $discount;
+  } elsif ($discount =~ /\$/) {
+    $discount =~ s/\$//;
+
+    $values->{'discountAmount'} = $discount;
+  }
+
+  $values->{'totalAmount'} = $values->{'renewalFee'} - $values->{'discountAmount'};
+
+  $values->{'taxPaidAmount'} = sprintf("%.2f", $values->{'totalAmount'} * $taxRate);
 
   write_record(
     $worksheet,

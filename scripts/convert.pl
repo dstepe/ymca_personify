@@ -5,7 +5,7 @@ use strict;
 use Data::Dumper;
 use Spreadsheet::XLSX;
 
-foreach my $type (qw(templates data)) {
+foreach my $type (qw(templates)) {
   opendir(TYPEDIR, "excel-$type") || die "Couldn't open excel-$type: $!";
   my @files = grep !/^\./, readdir(TYPEDIR);
   closedir(TYPEDIR);
