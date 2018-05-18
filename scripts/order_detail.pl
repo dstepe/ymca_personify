@@ -24,7 +24,7 @@ my $columnMap = {
   'INVOICE_DATE'                       => { 'type' => 'record', 'source' => 'orderDate' },
   'SUBSYSTEM'                          => { 'type' => 'static', 'source' => 'MBR' },
   'PRODUCT_CODE'                       => { 'type' => 'record', 'source' => 'productCode' },
-  'PARENT_PRODUCT'                     => { 'type' => 'static', 'source' => 'GMVYMCA' },
+  'PARENT_PRODUCT'                     => { 'type' => 'static', 'source' => 'GMV' },
   'LINE_TYPE'                          => { 'type' => 'static', 'source' => 'IP' },
   'LINE_STATUS_CODE'                   => { 'type' => 'static', 'source' => 'A' },
   'LINE_STATUS_DATE'                   => { 'type' => 'record', 'source' => 'orderDate' },
@@ -129,9 +129,36 @@ my $branchProgramCodes = {
   'Hamilton Central' => 'HC'
 };
 
+my $cycleDurations = {
+  'Annual' => '1 year',
+  'Monthly E-Pay' => '1 month',
+  'Quarterly' => '3 months',
+};
+
 $/ = "\r\n";
 
 my $csv = Text::CSV->new();
+
+my $prdRates = {};
+open(my $rates, '<:encoding(UTF-8)', 'data/PrdRates.csv')
+  or die "Couldn't open data/PrdRates.csv: $!";
+<$rates>;
+while (my $line = <$rates>) {
+  chomp $line;
+
+  $csv->parse($line) || die "Line could not be parsed: $line";
+
+  my @values = $csv->fields();
+
+  my $type = uc $values[0];
+  $prdRates->{$type} = {
+    'newType' => $values[1],
+  };
+
+  ($prdRates->{$type}{'Monthly E-Pay'} = $values[2]) =~ s/[^0-9\.]//g;
+  ($prdRates->{$type}{'Annual'} = $values[3]) =~ s/[^0-9\.]//g;
+}
+close($rates);
 
 my $membershipMap = {};
 open(my $map, '<:encoding(UTF-8)', 'data/MembershipMapping.csv')
@@ -144,7 +171,7 @@ while (my $line = <$map>) {
 
   my @values = $csv->fields();
 
-  $membershipMap->{$values[1]} = {
+  $membershipMap->{uc $values[1]} = {
     'branch' => $values[0],
     'paymentMethod' => $values[2],
     'productCode' => $values[3],
@@ -173,6 +200,7 @@ my $row = 1;
 while(<$orderMaster>) {
   chomp;
   my $values = split_values($_, @orderMasterFields);
+  my $membershipTypeKey = uc $values->{'membershipType'};
 
   my $taxRate = $taxRates->{'Other'};
 
@@ -180,19 +208,28 @@ while(<$orderMaster>) {
     $taxRate = $taxRates->{$values->{'membershipBranch'}};
   }
 
-  my $nextBillDate = ParseDate($values->{'nextBillDate'});
-  $values->{'beginDate'} = UnixDate($nextBillDate, '%Y-%m-%d');
-  my $cycle = $values->{'paymentMethod'} eq 'Annual' ? 'year' : 'month';
-  $values->{'endDate'} = UnixDate(DateCalc(DateCalc($nextBillDate, '+1 ' . $cycle), '-1 day'), '%Y-%m-%d');
+  my $orderDate = ParseDate($values->{'orderDate'});
+  $values->{'beginDate'} = UnixDate($orderDate, '%Y-%m-%d');
+  my $cycle = $cycleDurations->{$values->{'paymentMethod'}};
+  $values->{'endDate'} = UnixDate(DateCalc(DateCalc($orderDate, '+' . $cycle), '-1 day'), '%Y-%m-%d');
 
   $values->{'trxInvoiceId'} = '';
   $values->{'productCode'} = '';
   $values->{'rateCode'} = '';
   $values->{'discountAmount'} = '';
 
+  my $billAmount = $values->{'renewalFee'};
+
+  my $prd = '';
+  if ($membershipTypeKey =~ /PRD/) {
+    ($prd = $membershipTypeKey) =~ s/\-.*//;
+    die "Missing PRD mapping for $prd" unless (exists($prdRates->{$prd}));
+    $billAmount = $prdRates->{$prd}{$values->{'paymentMethod'}}
+  }
+
   my $discount = '';
-  if (exists($membershipMap->{$values->{'membershipType'}})) {
-    my $map = $membershipMap->{$values->{'membershipType'}};
+  if (exists($membershipMap->{$membershipTypeKey})) {
+    my $map = $membershipMap->{$membershipTypeKey};
 
     my $branchCode = $branchProgramCodes->{$values->{'membershipBranch'}};
     
@@ -212,14 +249,14 @@ while(<$orderMaster>) {
     $discount =~ s/\%//;
     $discount /= 100;
 
-    $values->{'discountAmount'} = $values->{'renewalFee'} * $discount;
+    $values->{'discountAmount'} = $billAmount * $discount;
   } elsif ($discount =~ /\$/) {
     $discount =~ s/\$//;
 
     $values->{'discountAmount'} = $discount;
   }
 
-  $values->{'totalAmount'} = $values->{'renewalFee'} - $values->{'discountAmount'};
+  $values->{'totalAmount'} = $billAmount - $values->{'discountAmount'};
 
   $values->{'taxPaidAmount'} = sprintf("%.2f", $values->{'totalAmount'} * $taxRate);
 
@@ -232,3 +269,4 @@ while(<$orderMaster>) {
 }
 
 close($orderMaster);
+

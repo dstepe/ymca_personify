@@ -17,6 +17,7 @@ our @EXPORT_OK = qw(
   split_values
   map_values
   make_record
+  convert_id
 );
 
 # these are exported by default.
@@ -28,6 +29,7 @@ our @EXPORT = qw(
   split_values
   map_values
   make_record
+  convert_id
 );
 
 sub get_template_columns {
@@ -125,6 +127,15 @@ sub make_record {
   }
 
   return \@record;
+}
+
+sub convert_id {
+  my $id = shift;
+
+  $id = s/^P/4/;
+  #$id = s/^P/4/;
+
+  return $id;
 }
 
 1;

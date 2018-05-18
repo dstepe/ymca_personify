@@ -9,6 +9,7 @@ use YMCAHelper;
 use File::Slurp;
 use Data::Dumper;
 use Excel::Writer::XLSX;
+use Date::Manip;
 use Text::CSV;
 
 my $templateName = 'DCT_ORDER_MASTER-42939';
@@ -17,7 +18,7 @@ my $orderNo = 1000000000;
 
 my $columnMap = {
   'ORDER_NO'                      => { 'type' => 'record', 'source' => 'OrderNo' },
-  'ORDER_DATE'                    => { 'type' => 'record', 'source' => 'NextBillDate' },
+  'ORDER_DATE'                    => { 'type' => 'record', 'source' => 'OrderDate' },
   'ORG_ID'                        => { 'type' => 'static', 'source' => 'GMVYMCA' },
   'ORG_UNIT_ID'                   => { 'type' => 'static', 'source' => 'GMVYMCA' },
   'BILL_CUSTOMER_ID'              => { 'type' => 'record', 'source' => 'MemberId' },
@@ -31,31 +32,46 @@ my $columnMap = {
 };
 
 my @skipTypes = (
-  'Family Program Participant',
+  'COLLEGE SUMMER',
+  'DIABETES 6 MTH FAM UPGRADE',
+  'DIABETES 6 MTH INDIVIDUAL',
+  'EMPLOY UPGRADE FAM',
+  'EMPLOY UPGRADE FAM PLUS',
+  'EMPLOY UPGRADE FAMILY',
+  'EMPLOY UPGRADE HC',
+  'EMPLOY UPGRADE HC FAM',
+  'EMPLOY UPGRADE IND PLUS',
+  'EMPLOY UPGRADE INDIV PLUS',
+  'EMPLOY UPGRADE INDIV PLUS DEP',
+  'EMPLOY UPGRADE SP FAM',
+  'EMPLOY UPGRADE TWO ADULT',
+  'EMPLOY YOUNG ADULT',
+  'EMPLOYEE UPGRADE HC FAM PLUS',
+  'FAMILY PROGRAM PARTICIPANT',
+  'FAMILY PROGRAM PARTICIPANT',
   'HEALTH CTR LIFE',
   'LIFE MEMBER',
   'LIFE MEMBER FAM HC UPGRADE',
   'LIFE MEMBER HC FAM PLUS UPGRAD',
   'LIFE MEMBER/HEALTH CTR',
-  'Non-Member',
   'PM FAMILY PLUS',
-  'Program Membership Family',
-  'Program Membership Individual',
-  'Program Participant',
+  'PROGRAM MEMBERSHIP FAMILY',
+  'PROGRAM MEMBERSHIP INDIVIDUAL',
   'RETIREE - INDIVIDUAL',
   'RETIREE - UPGRADE FAMILY',
-  'Retiree',
+  'RETIREE',
   'SAGE/PS PROGRAM INDIVIDUAL',
   'SAGE/PS PROGRAM UPGRADE FAMILY',
-  'TRADE - FAMILY',
-  'TRADE - INDIVIDUAL',
-  'TRADE - TWO ADULT HH',
-  'TRADE FAM UPGRADE FAM PLUS',
-  'TRADE-INDIV UPGRADE INDIV PLUS',
-  'Teen Summer Pass',
-  'Trade HC Upgrade TWO Adult HC',
-  'Trade HC Upgrade Two Adult HC',
+  'TEEN SUMMER PASS',
+  'XXXCINCINNATI UPGRADE',
+  'XXXSENIOR ADULT - EMPLOYEE',
 );
+
+my $cycleDurations = {
+  'Annual' => '1 year',
+  'Monthly E-Pay' => '1 month',
+  'Quarterly' => '3 months',
+};
 
 my @allColumns = get_template_columns($templateName);
 
@@ -70,7 +86,7 @@ print $orderMaster join("\t", @allColumns, 'MEMBERSHIP_TYPE',
 
 my $csv = Text::CSV->new();
 
-my %types;
+my $types = {};
 # Read in membership order data
 $/ = "\r\n";
 
@@ -89,12 +105,23 @@ while(my $line = <$orders>) {
   my $values = map_values(\@headers, [$csv->fields()]);
   #print Dumper($values);exit;
 
-  $types{$values->{'MembershipTypeDes'}}++;
+  $types->{$values->{'MembershipTypeDes'}}{$values->{'PaymentMethod'}}++;
 
-  next if (grep { $_ eq $values->{'MembershipTypeDes'} } @skipTypes);
+  next if (grep { uc $_ eq uc $values->{'MembershipTypeDes'} } @skipTypes);
 
-  $values->{'OrderDate'} = $values->{'NextBillDate'};
-  $values->{'StatusDate'} = $values->{'NextBillDate'};
+  # OrderDate must be start of current membership cycle
+  #  NextBillDate - (method offset)
+  $values->{'OrderDate'} = UnixDate(
+    DateCalc(
+      ParseDate($values->{'NextBillDate'}), 
+      '-' . $cycleDurations->{$values->{'PaymentMethod'}}
+      ), 
+    '%Y-%m-%d'
+  );
+
+  # Catch an future dates
+
+  $values->{'StatusDate'} = $values->{'OrderDate'};
   $values->{'OrderNo'} = $orderNo++;
 
   my $record = make_record($values, \@allColumns, $columnMap);
@@ -107,12 +134,14 @@ while(my $line = <$orders>) {
     $values->{'BranchCode'}, $values->{'MembershipBranch'}, 
     $values->{'CompanyName'},
     $values->{'NextBillDate'}, $values->{'JoinDate'},
-    $values->{'FamilyId'}) . "\n";;
+    $values->{'FamilyId'}) . "\n";
 
 }
 
 close($orders);
 
-foreach my $type (sort keys %types) {
-  print "$type\t$types{$type}\n";
-}
+# foreach my $type (sort keys %{$types}) {
+#   foreach my $method (sort keys %{$types->{$type}}) {
+#     print "$type\t$method\t$types->{$type}{$method}\n";
+#   }
+# }

@@ -20,7 +20,7 @@ foreach my $type (qw(templates)) {
     foreach my $row ($sheet->{'MinRow'} .. $sheet->{'MaxRow'}) {
       my @rowValues;
       foreach my $col ($sheet->{'MinCol'} .. $sheet->{'MaxCol'}) {
-        push(@rowValues, $sheet->{'Cells'}[$row][$col]->{'Val'});
+        push(@rowValues, $sheet->{'Cells'}[$row][$col]->{'Val'} || '');
       }
       print $fileOut join("\t", @rowValues) . "\n";
     }

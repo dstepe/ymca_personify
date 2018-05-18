@@ -84,6 +84,7 @@ while(<$orderMaster>) {
   $familyOrders->{$values->{'familyId'}} = {
     'orderNo' => $values->{'orderNo'},
     'memberId' => $values->{'shipCustomerId'},
+    'billingId' => $values->{'billCustomerId'}
   }
 }
 
@@ -106,7 +107,8 @@ while (my $line = <$members>) {
   my($memberId, $familyId) = $csv->fields();
 
   next unless (exists($familyOrders->{$familyId}));
-
+  next if ($familyOrders->{$familyId}{'memberId'} eq $familyOrders->{$familyId}{'billingId'});
+  
   my $values = {
     'orderNo' => $familyOrders->{$familyId}{'orderNo'},
     'memberId' => $memberId,
