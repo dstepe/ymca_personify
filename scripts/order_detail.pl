@@ -196,6 +196,7 @@ open(my $orderMaster, '<', 'data/order_master.txt')
   or die "Couldn't open data/order_master.txt: $!";
 <$orderMaster>; # eat the headers
 
+my $missingMembershipMap = {};
 my $row = 1;
 while(<$orderMaster>) {
   chomp;
@@ -242,6 +243,8 @@ while(<$orderMaster>) {
     }
 
     $discount = $map->{'discountAmount'};
+  } else {
+    $missingMembershipMap->{$membershipTypeKey}++;
   }
 
   $values->{'discountAmount'} = 0;
@@ -270,3 +273,4 @@ while(<$orderMaster>) {
 
 close($orderMaster);
 
+print Dumper($missingMembershipMap);

@@ -18,6 +18,7 @@ our @EXPORT_OK = qw(
   map_values
   make_record
   convert_id
+  compare
 );
 
 # these are exported by default.
@@ -30,6 +31,7 @@ our @EXPORT = qw(
   map_values
   make_record
   convert_id
+  compare
 );
 
 sub get_template_columns {
@@ -136,6 +138,20 @@ sub convert_id {
   #$id = s/^P/4/;
 
   return $id;
+}
+
+sub compare {
+  my $a = shift;
+  my $b = shift;
+  my $aLabel = shift || 'A';
+  my $bLabel = shift || 'B';
+
+  my $table = Text::Table->new('Attribute', $aLabel, $bLabel);
+  foreach my $key (sort keys %{$a}) {
+    $table->add($key, $a->{$key}, $b->{$key});
+  }
+
+  print $table;
 }
 
 1;
