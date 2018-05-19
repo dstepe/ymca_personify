@@ -9,13 +9,14 @@ use YMCAHelper;
 use File::Slurp;
 use Data::Dumper;
 use Excel::Writer::XLSX;
-use Text::CSV;
+use Text::CSV_XS;
 use Date::Manip;
 use Text::Table;
+use Term::ProgressBar;
 
-my $templateName = 'DCT_CUS_INDIVIDUAL';
+my $cusIndTemplateName = 'DCT_CUS_INDIVIDUAL';
 
-my $columnMap = {
+my $cusIndColumnMap = {
   'ORG_ID'                               => { 'type' => 'static', 'source' => 'GMVYMCA' },
   'ORG_UNIT_ID'                          => { 'type' => 'static', 'source' => 'GMVYMCA' },
   'TRX_ID'                               => { 'type' => 'record', 'source' => 'MemberId' },
@@ -89,132 +90,159 @@ my $columnMap = {
   'PUBLISH_PRIMARY_MOBILE_PHONE_FLAG'    => { 'type' => 'static', 'source' => 'N' },
 };
 
-my @allColumns = get_template_columns($templateName);
+my @cusIndAllColumns = get_template_columns($cusIndTemplateName);
 
-my $workbook = make_workbook($templateName);
-my $worksheet = make_worksheet($workbook, \@allColumns);
+my $cusIndWorkbook = make_workbook($cusIndTemplateName);
+my $cusIndWorksheet = make_worksheet($cusIndWorkbook, \@cusIndAllColumns);
 
-my $csv = Text::CSV->new();
+my $cusRelTemplateName = 'DCT_CUS_RELATIONSHIP-20681';
 
-$/ = "\r\n";
+my $cusRelColumnMap = {
+  'RELATED_TRX_ID'            => { 'type' => 'record', 'source' => 'PrimaryId' },
+  'TRX_ID'                    => { 'type' => 'record', 'source' => 'MemberId' },
+  'RELATED_NAME'              => { 'type' => 'record', 'source' => 'PrimaryName' },
+  'RELATIONSHIP_TYPE'         => { 'type' => 'static', 'source' => 'FAMILY' },
+  'RELATIONSHIP_CODE'         => { 'type' => 'static', 'source' => 'FAMILY_MEMBER' },
+  'RECIPROCAL_CODE'           => { 'type' => 'static', 'source' => 'FAMILY_MEMBER' },
+  'BEGIN_DATE'                => { 'type' => 'static', 'source' => '1/1/2018' },
+  'PRIMARY_CONTACT_FLAG'      => { 'type' => 'static', 'source' => 'N' },
+  'PRIMARY_EMPLOYER_FLAG'     => { 'type' => 'static', 'source' => 'N' },
+  'CL_AFFILIATE_MANAGER_FLAG' => { 'type' => 'static', 'source' => 'Y' },
+};
 
-my($membersFile, $headers) = openMembersFile();
+my @cusRelAllColumns = get_template_columns($cusRelTemplateName);
+
+my $cusRelWorkbook = make_workbook($cusRelTemplateName);
+my $cusRelWorksheet = make_worksheet($cusRelWorkbook, \@cusRelAllColumns);
+
+my $addrLnkTemplateName = 'DCT_ADDRESS_LINKING-43751';
+
+my $addrLnkColumnMap = {
+  'MASTER_TRX_ID'                        => { 'type' => 'record', 'source' => 'MemberId' },
+  'LABEL_NAME'                           => { 'type' => 'record', 'source' => 'PrimaryName' },
+  'ADDRESS_TYPE_CODE'                    => { 'type' => 'static', 'source' => 'HOME' },
+  'ADDRESS_STATUS_CODE'                  => { 'type' => 'static', 'source' => 'GOOD' },
+  'ADDRESS_STATUS_CHANGE_DATE'           => { 'type' => 'record', 'source' => 'CurrentDate' },
+  'LINK_FROM_TRX_ID'                     => { 'type' => 'record', 'source' => 'MemberId' },
+  'LINK_FROM_ADDRESS_TYPE'               => { 'type' => 'static', 'source' => 'HOME' },
+  'PRIMARY_FLAG'                         => { 'type' => 'static', 'source' => 'Y' },
+  'ONE_TIME_USE_FLAG'                    => { 'type' => 'static', 'source' => 'N' },
+  'CONFIDENTIAL_FLAG'                    => { 'type' => 'static', 'source' => 'N' },
+  'SHIP_TO_FLAG'                         => { 'type' => 'static', 'source' => 'Y' },
+  'BILL_TO_FLAG'                         => { 'type' => 'static', 'source' => 'Y' },
+  'WEB_MOBILE_DIRECTORY_FLAG'            => { 'type' => 'static', 'source' => 'N' },
+  'INCLUDE_IN_WEB_MOBILE_DIRECTORY_FLAG' => { 'type' => 'static', 'source' => 'N' },
+  'DIRECTORY_PRIORITY'                   => { 'type' => 'static', 'source' => '0' },
+  'RECUR_FLAG'                           => { 'type' => 'static', 'source' => 'N' },
+  'AP_FLAG'                              => { 'type' => 'static', 'source' => 'N' },
+  'PRIMARY_SEARCH_GROUP_OVERRIDE_FLAG'   => { 'type' => 'static', 'source' => 'N' },
+};
+
+my @addrLnkAllColumns = get_template_columns($addrLnkTemplateName);
+
+my $addrLnkWorkbook = make_workbook($addrLnkTemplateName);
+my $addrLnkWorksheet = make_worksheet($addrLnkWorkbook, \@addrLnkAllColumns);
+
+my $csv = Text::CSV_XS->new ({ auto_diag => 1 });
+
+my($membersFile, $headers, $totalRows) = openMembersFile();
+
+print "Processing customers\n";
+my $progress = Term::ProgressBar->new({ 'count' => $totalRows });
 
 my $members = {};
 my $families = {};
 my $familyOldestMember = {};
 my $conflicts = [];
 my $noFamily = [];
-my $count = 0;
-while(my $line = <$membersFile>) {
-  chomp $line;
+my $count = 1;
+while(my $rowIn = $csv->getline($membersFile)) {
 
-  $count++;
-  print "Count $count\n" if ($count % 1000 == 0);
-  next unless ($line =~ /F193819563/);
+  $progress->update($count++);
 
-  $csv->parse($line) || die "Line could not be parsed: $line";
-
-  my $values = map_values($headers, [$csv->fields()]);
-  next unless ($values->{'FamilyId'} eq 'F193819563');
+  my $values = clean_customer(map_values($headers, $rowIn));
+  # next unless ($values->{'FamilyId'} eq 'F365293034');
   # print Dumper($values); exit;
 
   $members->{$values->{'MemberId'}} = $values;
 
+  next unless (isMember($values));
+  
+  # Camp members who do not need to be loaded
   unless ($values->{'FamilyId'}) {
     push(@{$noFamily}, {
       'MemberId' => $values->{'MemberId'},
     });
-  }
-  my $familyId = $values->{'FamilyId'};
-
-  unless (exists($families->{$familyId})) {
-    $families->{$familyId} = {
-      'primaryId' => '',
-      'members' => [],
-      'address' => {
-        'address1' => '',
-        'address2' => '',
-        'city' => '',
-        'state' => '',
-        'zip' => ''
-      },
-      'email' => '',
-      'nextBillDate' => '',
-    };
+    next;
   }
 
-  if ($values->{'DateOfBirth'}) {
-    my $memberBirthDate = ParseDate($values->{'DateOfBirth'});
+  $values->{'FormalName'} = $values->{'FirstName'} . ' ' . $values->{'LastName'};
 
-    if (!exists($familyOldestMember->{$familyId})) {
-      $familyOldestMember->{$familyId} = {
-        'birthDate' => $memberBirthDate,
-        'memberId' => $values->{'MemberId'},
-      };
-    } elsif (Date_Cmp($memberBirthDate, $familyOldestMember->{$familyId}{'birthDate'}) == -1) {
-      $familyOldestMember->{$familyId}{'birthDate'} = $memberBirthDate;
-      $familyOldestMember->{$familyId}{'memberId'} = $values->{'MemberId'};
-    }
-  }
-
-  push(@{$families->{$familyId}{'members'}}, $values->{'MemberId'});
-  
-  if (billableMember($values)) {
-    if ($families->{$familyId}{'primaryId'} && 
-        $families->{$familyId}{'primaryId'} ne $values->{'MemberId'}) {
-      #compare($values, $members->{$families->{$familyId}{'primaryId'}});
-      my $conflictedMember = $members->{$families->{$familyId}{'primaryId'}};
-      push(@{$conflicts}, {
-        'familyId' => $familyId,
-        'a-memberId' => $values->{'MemberId'},
-        'a-billableId' => $values->{'BillableMemberId'},
-        'a-membershipType' => $values->{'MembershipType'},
-        'b-memberId' => $conflictedMember->{'MemberId'},
-        'b-billableId' => $conflictedMember->{'BillableMemberId'},
-        'b-membershipType' => $conflictedMember->{'MembershipType'},
-      });
-      next;
-    } 
-
-    $families->{$familyId}{'primaryId'} = $values->{'MemberId'};
-    $families->{$familyId}{'nextBillDate'} = $values->{'NextBillDate'};
-    $families->{$familyId}{'email'} = $values->{'Email'};
-    $families->{$familyId}{'address'}{'address1'} = $values->{'Address1'};
-    $families->{$familyId}{'address'}{'address2'} = $values->{'Address2'};
-    $families->{$familyId}{'address'}{'city'} = $values->{'City'};
-    $families->{$familyId}{'address'}{'state'} = $values->{'State'};
-    $families->{$familyId}{'address'}{'zip'} = $values->{'Zip'};
-  }
+  addToFamilies($values, $families, $conflicts, $familyOldestMember);
 }
 
 close($membersFile);
 
+# Put non-members into families
+print "Processing non-members\n";
+$progress = Term::ProgressBar->new({ 'count' => scalar(keys %{$members}) });
+$count = 1;
+my $overSubscribedFamilies = {};
+foreach my $memberId (keys %{$members}) {
+  $progress->update($count);
+  my $member = $members->{$memberId};
+  next if (isMember($member));
+
+  # if the family exists, assign the first membership type
+  # and primary ID to this non-member
+  if (exists($families->{$member->{'FamilyId'}})) {
+    my @familyTypes = keys $families->{$member->{'FamilyId'}};
+    
+    $member->{'OverSubscribed'} = 0;
+    if (@familyTypes > 1) {
+      $overSubscribedFamilies->{$member->{'FamilyId'}} =
+        $families->{$member->{'FamilyId'}};
+      $member->{'OverSubscribed'} = 1;
+      next;
+    }
+
+    $member->{'MembershipType'} = $familyTypes[0];
+    $member->{'BillableMemberId'} 
+      = $families->{$member->{'FamilyId'}}{$member->{'MembershipType'}}{'primaryId'};
+  }
+
+  addToFamilies($member, $families, $conflicts, $familyOldestMember);
+}
+
 # Find families with no primary and use oldest member
+print "Processing primary family members\n";
+$progress = Term::ProgressBar->new({ 'count' => scalar(keys %{$families}) });
+$count = 1;
+
 my $primaryByBillable = 0;
 my $primaryByBirth = 0;
 my $missingPrimary = 0;
 my $familyCount = 0;
 foreach my $familyId (keys %{$families}) {
-  $familyCount++;
+  foreach my $membershipType (keys %{$families->{$familyId}}) {
+    $progress->update($count);
+    $familyCount++;
 
-  if ($families->{$familyId}{'primaryId'}) {
-    $primaryByBillable++;
-  } else {
-    if (exists($familyOldestMember->{$familyId})) {
-      $families->{$familyId}{'primaryId'}
-        = $familyOldestMember->{$familyId}{'memberId'};
-      $primaryByBirth++;
+    my $family = $families->{$familyId}{$membershipType};
+
+    if ($family->{'primaryId'}) {
+      $primaryByBillable++;
+    } else {
+      if (exists($familyOldestMember->{$familyId})) {
+        $family->{'primaryId'}
+          = $familyOldestMember->{$familyId}{'memberId'};
+        $primaryByBirth++;
+      }
     }
+
+    $missingPrimary++ unless ($family->{'primaryId'});
   }
-
-  $missingPrimary++ unless ($families->{$familyId}{'primaryId'});
 }
-
-print "families: $familyCount\n";
-print "primary by billable: $primaryByBillable\n";
-print "primary by birth: $primaryByBirth\n";
-print "no primary: $missingPrimary\n";
 
 CONFLICTS: {
   my $conflictWorkbook = make_workbook('conflicted_primary');
@@ -244,66 +272,199 @@ NOFAMILY: {
   }
 }
 
-($members, $headers) = openMembersFile();
-
-my $row = 1;
-while(my $line = <$members>) {
-  chomp $line;
-
-  next unless ($line =~ /F193819563/);
-  
-  $csv->parse($line) || die "Line could not be parsed: $line";
-
-  my $values = map_values($headers, [$csv->fields()]);
-  # print Dumper($values, $families->{$values->{'FamilyId'}});exit;
-
-  my $family = $families->{$values->{'FamilyId'}};
-
-  $values->{'PrimaryAddress1'} = 'NOT AVAILABLE';
-  $values->{'PrimaryAddress2'} = '';
-  $values->{'PrimaryCity'} = '';
-  $values->{'PrimaryState'} = '';
-  $values->{'PrimaryZip'} = '';
-  $values->{'PrimaryCountry'} = '';
-  #$values->{'PrimaryEmail'} = '';
-
-  if ($values->{'MemberId'} eq $family->{'primaryId'}) {
-    $values->{'PrimaryAddress1'} = $family->{'address'}{'address1'};
-    $values->{'PrimaryAddress2'} = $family->{'address'}{'address2'};
-    $values->{'PrimaryCity'} = $family->{'address'}{'city'};
-    $values->{'PrimaryState'} = $family->{'address'}{'state'};
-    $values->{'PrimaryZip'} = $family->{'address'}{'zip'};
-    $values->{'PrimaryZip'} = 'USA';
-    #$values->{'PrimaryEmail'} = $family->{'email'};
+OVERSUBSCRIBED: {
+  my $maxTypes = 0;
+  foreach my $familyId (keys %{$overSubscribedFamilies}) {
+    $maxTypes = (keys %{$overSubscribedFamilies->{$familyId}})
+      if ((keys %{$overSubscribedFamilies->{$familyId}}) > $maxTypes);
   }
 
-  my $record = make_record($values, \@allColumns, $columnMap);
-  write_record($worksheet, $row++, $record);
+  my $columns = ['FamilyId'];
+  for my $i (1..$maxTypes) {
+    push(@{$columns}, "PrimaryId $i", "Membership Type $i");
+  }
 
+  my $overSubWorkbook = make_workbook('over_subscribed');
+  my $overSubWorksheet = make_worksheet($overSubWorkbook, $columns);
+
+  my $row = 1;
+  foreach my $familyId (keys %{$overSubscribedFamilies}) {
+    my $values = [
+      $familyId,
+    ];
+
+    foreach my $type (keys %{$overSubscribedFamilies->{$familyId}}) {
+      push(
+        @{$values}, 
+        $overSubscribedFamilies->{$familyId}{$type}{'primaryId'},
+        $type
+      );
+    }
+
+    write_record($overSubWorksheet, $row++, $values);
+  }
 }
 
-close($members);
+my $currentDate = UnixDate(ParseDate('today'), '%Y-%m-%d');
+
+print "Generating customer files\n";
+$progress = Term::ProgressBar->new({ 'count' => scalar(keys %{$members}) });
+$count = 1;
+my $indRow = 1;
+my $lnkRow = 1;
+foreach my $memberId (keys %{$members}) {
+  $progress->update($count);
+  my $member = $members->{$memberId};
+
+  # next unless ($member->{'FamilyId'} eq 'F365293034');
+  # print Dumper($member, $families->{$member->{'FamilyId'}});exit;
+
+  next if ($member->{'OverSubscribed'});
+  
+  my $family = $families->{$member->{'FamilyId'}}{uc $member->{'MembershipType'}};
+  my $primaryMember = $members->{$family->{'primaryId'}};
+  my $isPrimary = $member->{'MemberId'} eq $family->{'primaryId'};
+
+  $member->{'CurrentDate'} = $currentDate;
+
+  # These Primary fields are only to filled in with primary member values
+  $member->{'PrimaryId'} = $family->{'primaryId'};
+  $member->{'PrimaryAddress1'} = 'NOT AVAILABLE';
+  $member->{'PrimaryAddress2'} = '';
+  $member->{'PrimaryCity'} = '';
+  $member->{'PrimaryState'} = '';
+  $member->{'PrimaryZip'} = '';
+  $member->{'PrimaryCountry'} = '';
+  $member->{'PrimaryName'} = $primaryMember->{'FormalName'};
+  
+  # Move the email address to the primary member unless the primary has one
+  $member->{'Email'} = $primaryMember->{'Email'} unless ($member->{'Email'});
+
+  if ($isPrimary) {
+    $member->{'PrimaryAddress1'} = $member->{'Address1'};
+    $member->{'PrimaryAddress2'} = $member->{'Address2'};
+    $member->{'PrimaryCity'} = $member->{'City'};
+    $member->{'PrimaryState'} = $member->{'State'};
+    $member->{'PrimaryZip'} = $member->{'Zip'};
+    $member->{'PrimaryCountry'} = 'USA';
+    $member->{'PrimaryName'} = $member->{'FormalName'};
+  }
+
+  my $cusIndRecord = make_record($member, \@cusIndAllColumns, $cusIndColumnMap);
+  write_record($cusIndWorksheet, $indRow++, $cusIndRecord);
+
+  unless ($isPrimary) {
+    my $cusRelRecord = make_record($member, \@cusRelAllColumns, $cusRelColumnMap);
+    write_record($cusRelWorksheet, $lnkRow, $cusRelRecord);
+
+    my $addrLnkRecord = make_record($member, \@addrLnkAllColumns, $addrLnkColumnMap);
+    write_record($addrLnkWorksheet, $lnkRow, $addrLnkRecord);
+
+    $lnkRow++;
+  }
+}
+
+close($membersFile);
 
 sub openMembersFile {
+  my $csv = Text::CSV_XS->new ({ auto_diag => 1 });
+  
+  # Subtract one for the heading row
+  my $totalRows = `cat data/AllMembers.csv | wc -l` - 1;
+
   open(my $members, '<:encoding(UTF-8)', 'data/AllMembers.csv')
     or die "Couldn't open data/AllMembers.csv: $!";
-  my $headerLine = <$members>;
-  $csv->parse($headerLine) || die "Line could not be parsed: $headerLine";
-  my @headers = $csv->fields();
+  my $headers = $csv->getline($members);
 
-  return $members, \@headers;
+  return $members, $headers, $totalRows;
+}
+
+sub clean_customer {
+  my $values = shift;
+
+  # Trim all name fields
+  # Clear all address fields if address1 is empty
+  # Remove trailing - in zip
+  # Remove non digits in phone
+  # Discard on 10 digit phones
+  # Ensure valid email format
+  
+  return $values;
+}
+
+sub isMember {
+  my $values = shift;
+
+  return 0 if ($values->{'MembershipType'} eq 'Non-Member');
+  return 0 if ($values->{'MembershipType'} =~ /program/i);
+
+  return 1;
 }
 
 sub billableMember {
   my $values = shift;
 
-  my @nonBillableTypes = (
-    'Non-Member',
-  );
+  return 0 unless isMember($values);
 
-  unless (grep { $_ eq $values->{'MembershipType'} } @nonBillableTypes) {
-    return $values->{'BillableMemberId'} eq $values->{'MemberId'};
+  return $values->{'BillableMemberId'} eq $values->{'MemberId'};
+}
+
+sub addToFamilies {
+  my $values = shift;
+  my $families = shift;
+  my $conflicts = shift;
+  my $familyOldestMember = shift;
+
+  my $familyId = $values->{'FamilyId'};
+  my $membershipType = uc $values->{'MembershipType'};
+
+  unless (exists($families->{$familyId})) {
+    $families->{$familyId} = {};    
+  };
+
+  unless (exists($families->{$familyId}{$membershipType})) {
+    $families->{$familyId}{$membershipType} = {
+      'primaryId' => '',
+      'members' => [],
+    };
   }
 
-  return 0;
+  my $family = $families->{$familyId}{$membershipType};
+
+  if ($values->{'DateOfBirth'}) {
+    my $memberBirthDate = ParseDate($values->{'DateOfBirth'});
+
+    if (!exists($familyOldestMember->{$familyId})) {
+      $familyOldestMember->{$familyId} = {
+        'birthDate' => $memberBirthDate,
+        'memberId' => $values->{'MemberId'},
+      };
+    } elsif (Date_Cmp($memberBirthDate, $familyOldestMember->{$familyId}{'birthDate'}) == -1) {
+      $familyOldestMember->{$familyId}{'birthDate'} = $memberBirthDate;
+      $familyOldestMember->{$familyId}{'memberId'} = $values->{'MemberId'};
+    }
+  }
+
+  push(@{$family->{'members'}}, $values->{'MemberId'});
+  
+  if (billableMember($values)) {
+    if ($family->{'primaryId'} && 
+        $family->{'primaryId'} ne $values->{'MemberId'}) {
+      # compare($values, $members->{$family->{'primaryId'}});
+      # exit;
+      my $conflictedMember = $members->{$family->{'primaryId'}};
+      push(@{$conflicts}, {
+        'familyId' => $familyId,
+        'a-memberId' => $values->{'MemberId'},
+        'a-billableId' => $values->{'BillableMemberId'},
+        'a-membershipType' => $values->{'MembershipType'},
+        'b-memberId' => $conflictedMember->{'MemberId'},
+        'b-billableId' => $conflictedMember->{'BillableMemberId'},
+        'b-membershipType' => $conflictedMember->{'MembershipType'},
+      });
+      return;
+    } 
+
+    $family->{'primaryId'} = $values->{'MemberId'};
+  }
 }

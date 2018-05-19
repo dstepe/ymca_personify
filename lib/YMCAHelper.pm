@@ -19,6 +19,7 @@ our @EXPORT_OK = qw(
   make_record
   convert_id
   compare
+  dump
 );
 
 # these are exported by default.
@@ -32,6 +33,7 @@ our @EXPORT = qw(
   make_record
   convert_id
   compare
+  dump
 );
 
 sub get_template_columns {
@@ -152,6 +154,19 @@ sub compare {
   }
 
   print $table;
+}
+
+sub dump {
+  my $obj = shift;
+
+  my $table = Text::Table->new('Attribute', 'Value');
+  foreach my $key (sort keys %{$obj}) {
+    my $value = $obj->{$key};
+    $value = join(', ', @{$value}) if (ref($value) eq 'ARRAY');
+    $table->add($key, $value);
+  }
+
+  print $table;  
 }
 
 1;
