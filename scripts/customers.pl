@@ -35,13 +35,13 @@ my $columnMap = {
   'CITY'                                 => { 'type' => 'record', 'source' => 'PrimaryCity' },
   'STATE'                                => { 'type' => 'record', 'source' => 'PrimaryState' },
   'POSTAL_CODE'                          => { 'type' => 'record', 'source' => 'PrimaryZip' },
-  'COUNTRY_CODE'                         => { 'type' => 'static', 'source' => 'USA' },
+  'COUNTRY_CODE'                         => { 'type' => 'record', 'source' => 'PrimaryCountry' },
   'ADDRESS_TYPE_CODE'                    => { 'type' => 'static', 'source' => 'HOME' },
   'ADDRESS_STATUS_CODE'                  => { 'type' => 'static', 'source' => 'GOOD' },
   'PHONE_AREA_CODE'                      => { 'type' => 'record', 'source' => 'HomePhone' },
   'PRIMARY_PHONE'                        => { 'type' => 'record', 'source' => 'HomePhone' },
   'PRIMARY_PHONE_LOCATION_CODE'          => { 'type' => 'static', 'source' => 'HOME' },
-  'PRIMARY_EMAIL_ADDRESS'                => { 'type' => 'record', 'source' => 'MemberEmail' },
+  'PRIMARY_EMAIL_ADDRESS'                => { 'type' => 'record', 'source' => 'Email' },
   'PRIMARY_EMAIL_LOCATION_CODE'          => { 'type' => 'static', 'source' => 'HOME' },
   'ALLOW_PHONE_FLAG'                     => { 'type' => 'static', 'source' => 'Y' },
   'ALLOW_FAX_FLAG'                       => { 'type' => 'static', 'source' => 'Y' },
@@ -111,10 +111,12 @@ while(my $line = <$membersFile>) {
 
   $count++;
   print "Count $count\n" if ($count % 1000 == 0);
+  next unless ($line =~ /F193819563/);
 
   $csv->parse($line) || die "Line could not be parsed: $line";
 
   my $values = map_values($headers, [$csv->fields()]);
+  next unless ($values->{'FamilyId'} eq 'F193819563');
   # print Dumper($values); exit;
 
   $members->{$values->{'MemberId'}} = $values;
@@ -213,7 +215,6 @@ print "families: $familyCount\n";
 print "primary by billable: $primaryByBillable\n";
 print "primary by birth: $primaryByBirth\n";
 print "no primary: $missingPrimary\n";
-# print Dumper($families);
 
 CONFLICTS: {
   my $conflictWorkbook = make_workbook('conflicted_primary');
@@ -243,20 +244,41 @@ NOFAMILY: {
   }
 }
 
-exit;
-
 ($members, $headers) = openMembersFile();
 
+my $row = 1;
 while(my $line = <$members>) {
   chomp $line;
 
+  next unless ($line =~ /F193819563/);
+  
   $csv->parse($line) || die "Line could not be parsed: $line";
 
   my $values = map_values($headers, [$csv->fields()]);
-  print Dumper($values);exit;
+  # print Dumper($values, $families->{$values->{'FamilyId'}});exit;
 
-  # my $record = make_record($values, \@allColumns, $columnMap);
-  # write_record($worksheet, $order++, $record);
+  my $family = $families->{$values->{'FamilyId'}};
+
+  $values->{'PrimaryAddress1'} = 'NOT AVAILABLE';
+  $values->{'PrimaryAddress2'} = '';
+  $values->{'PrimaryCity'} = '';
+  $values->{'PrimaryState'} = '';
+  $values->{'PrimaryZip'} = '';
+  $values->{'PrimaryCountry'} = '';
+  #$values->{'PrimaryEmail'} = '';
+
+  if ($values->{'MemberId'} eq $family->{'primaryId'}) {
+    $values->{'PrimaryAddress1'} = $family->{'address'}{'address1'};
+    $values->{'PrimaryAddress2'} = $family->{'address'}{'address2'};
+    $values->{'PrimaryCity'} = $family->{'address'}{'city'};
+    $values->{'PrimaryState'} = $family->{'address'}{'state'};
+    $values->{'PrimaryZip'} = $family->{'address'}{'zip'};
+    $values->{'PrimaryZip'} = 'USA';
+    #$values->{'PrimaryEmail'} = $family->{'email'};
+  }
+
+  my $record = make_record($values, \@allColumns, $columnMap);
+  write_record($worksheet, $row++, $record);
 
 }
 
