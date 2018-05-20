@@ -11,13 +11,14 @@ use Data::Dumper;
 use Excel::Writer::XLSX;
 use Date::Manip;
 use Text::CSV;
+use Term::ProgressBar;
 
 my $templateName = 'DCT_ORDER_MBR_ASSOCIATE-41924';
 
 my $columnMap = {
-  'ORDER_NO'                           => { 'type' => 'record', 'source' => 'orderNo' },
+  'ORDER_NO'                           => { 'type' => 'record', 'source' => 'OrderNo' },
   'ORDER_LINE_NO'                      => { 'type' => 'static', 'source' => '1' },
-  'ASSOCIATE_CUSTOMER_ID'              => { 'type' => 'record', 'source' => 'memberId' },
+  'ASSOCIATE_CUSTOMER_ID'              => { 'type' => 'record', 'source' => 'MemberId' },
   'ASSOCIATE_CLASS_CODE'               => { 'type' => 'static', 'source' => 'FAMILY' },
 };
 
@@ -64,6 +65,7 @@ my @orderMasterFields = qw(
   nextBillDate
   joinDate
   familyId
+  perMemberId
 );
 
 my @allColumns = get_template_columns($templateName);
@@ -79,7 +81,6 @@ my $familyOrders = {};
 while(<$orderMaster>) {
   chomp;
   my $values = split_values($_, @orderMasterFields);
-  #print Dumper($values); exit;
 
   $familyOrders->{$values->{'familyId'}} = {
     'orderNo' => $values->{'orderNo'},
@@ -90,29 +91,28 @@ while(<$orderMaster>) {
 
 close($orderMaster);
 
-$/ = "\r\n";
+my $csv = Text::CSV_XS->new ({ auto_diag => 1 });
 
-my $csv = Text::CSV->new();
+my($membersFile, $headers, $totalRows) = open_members_file();
 
-open(my $members, '<:encoding(UTF-8)', 'data/AllMembers.csv')
-  or die "Couldn't open data/AllMembers.csv: $!";
-<$members>;
+print "Processing customers\n";
+my $progress = Term::ProgressBar->new({ 'count' => $totalRows });
 
+my $count = 1;
 my $row = 1;
-while (my $line = <$members>) {
-  chomp $line;
+while(my $rowIn = $csv->getline($membersFile)) {
 
-  $csv->parse($line) || die "Line could not be parsed: $line";
+  $progress->update($count++);
 
-  my($memberId, $familyId) = $csv->fields();
+  my $values = clean_customer(map_values($headers, $rowIn));
+  # dump($values); exit;
+
+  my $familyId = $values->{'FamilyId'};
 
   next unless (exists($familyOrders->{$familyId}));
-  next if ($familyOrders->{$familyId}{'memberId'} eq $familyOrders->{$familyId}{'billingId'});
+  next if ($values->{'MemberId'} eq $familyOrders->{$familyId}{'billingId'});
   
-  my $values = {
-    'orderNo' => $familyOrders->{$familyId}{'orderNo'},
-    'memberId' => $memberId,
-  };
+  $values->{'OrderNo'} = $familyOrders->{$familyId}{'orderNo'};
 
   write_record(
     $worksheet,
@@ -120,4 +120,4 @@ while (my $line = <$members>) {
     make_record($values, \@allColumns, $columnMap)
   );
 }
-close($members);
+close($membersFile);

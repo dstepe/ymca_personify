@@ -11,6 +11,7 @@ use Data::Dumper;
 use Excel::Writer::XLSX;
 use Date::Manip;
 use Text::CSV;
+use Term::ProgressBar;
 
 my $templateName = 'DCT_ORDER_MASTER-42939';
 
@@ -21,9 +22,9 @@ my $columnMap = {
   'ORDER_DATE'                    => { 'type' => 'record', 'source' => 'OrderDate' },
   'ORG_ID'                        => { 'type' => 'static', 'source' => 'GMVYMCA' },
   'ORG_UNIT_ID'                   => { 'type' => 'static', 'source' => 'GMVYMCA' },
-  'BILL_CUSTOMER_ID'              => { 'type' => 'record', 'source' => 'MemberId' },
+  'BILL_CUSTOMER_ID'              => { 'type' => 'record', 'source' => 'PerMemberId' },
   'BILL_ADDRESS_TYPE_CODE'        => { 'type' => 'static', 'source' => 'HOME' },
-  'SHIP_CUSTOMER_ID'              => { 'type' => 'record', 'source' => 'MemberId' },
+  'SHIP_CUSTOMER_ID'              => { 'type' => 'record', 'source' => 'PerMemberId' },
   'ORDER_STATUS_CODE'             => { 'type' => 'static', 'source' => 'A' },
   'ORDER_STATUS_DATE'             => { 'type' => 'record', 'source' => 'StatusDate' },
   'APPLICATION'                   => { 'type' => 'static', 'source' => 'ORD001' },
@@ -82,7 +83,7 @@ open(my $orderMaster, '>', 'data/order_master.txt')
   or die "Couldn't open data/order_master.txt: $!";
 print $orderMaster join("\t", @allColumns, 'MEMBERSHIP_TYPE', 
   'PAYMENT_METHOD', 'RENEWAL_FEE', 'BRANCH_CODE', 'BRANCH_NAME',
-  'COMPANY_NAME', 'NEXT_BILL_DATE', 'JOIN_DATE', 'FAMILY_ID') . "\n";;
+  'COMPANY_NAME', 'NEXT_BILL_DATE', 'JOIN_DATE', 'FAMILY_ID', 'PER_MEMBER_ID') . "\n";;
 
 my $csv = Text::CSV->new();
 
@@ -90,8 +91,8 @@ my $types = {};
 # Read in membership order data
 $/ = "\r\n";
 
-open(my $orders, '<:encoding(UTF-8)', 'data/MemberShipOrders.csv')
-  or die "Couldn't open data/MemberShipOrders.csv: $!";
+open(my $orders, '<:encoding(UTF-8)', 'data/MembershipOrders.csv')
+  or die "Couldn't open data/MembershipOrders.csv: $!";
 my $headerLine = <$orders>;
 $csv->parse($headerLine) || die "Line could not be parsed: $headerLine";
 my @headers = $csv->fields();
@@ -109,6 +110,8 @@ while(my $line = <$orders>) {
 
   next if (grep { uc $_ eq uc $values->{'MembershipTypeDes'} } @skipTypes);
 
+  $values->{'PerMemberId'} = convert_id($values->{'MemberId'});
+
   # OrderDate must be start of current membership cycle
   #  NextBillDate - (method offset)
   $values->{'OrderDate'} = UnixDate(
@@ -119,7 +122,7 @@ while(my $line = <$orders>) {
     '%Y-%m-%d'
   );
 
-  # Catch an future dates
+  # Catch any future dates
 
   $values->{'StatusDate'} = $values->{'OrderDate'};
   $values->{'OrderNo'} = $orderNo++;
@@ -134,7 +137,7 @@ while(my $line = <$orders>) {
     $values->{'BranchCode'}, $values->{'MembershipBranch'}, 
     $values->{'CompanyName'},
     $values->{'NextBillDate'}, $values->{'JoinDate'},
-    $values->{'FamilyId'}) . "\n";
+    $values->{'FamilyId'}, $values->{'PerMemberId'}) . "\n";
 
 }
 

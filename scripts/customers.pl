@@ -11,7 +11,6 @@ use Data::Dumper;
 use Excel::Writer::XLSX;
 use Text::CSV_XS;
 use Date::Manip;
-use Text::Table;
 use Term::ProgressBar;
 
 my $cusIndTemplateName = 'DCT_CUS_INDIVIDUAL';
@@ -150,7 +149,7 @@ my $addrLnkWorksheet = make_worksheet($addrLnkWorkbook, \@addrLnkAllColumns);
 
 my $csv = Text::CSV_XS->new ({ auto_diag => 1 });
 
-my($membersFile, $headers, $totalRows) = openMembersFile();
+my($membersFile, $headers, $totalRows) = open_members_file();
 
 print "Processing customers\n";
 my $progress = Term::ProgressBar->new({ 'count' => $totalRows });
@@ -171,7 +170,7 @@ while(my $rowIn = $csv->getline($membersFile)) {
 
   $members->{$values->{'MemberId'}} = $values;
 
-  next unless (isMember($values));
+  next unless (is_member($values));
   
   # Camp members who do not need to be loaded
   unless ($values->{'FamilyId'}) {
@@ -197,7 +196,7 @@ my $overSubscribedFamilies = {};
 foreach my $memberId (keys %{$members}) {
   $progress->update($count++);
   my $member = $members->{$memberId};
-  next if (isMember($member));
+  next if (is_member($member));
 
   # if the family exists, assign the first membership type
   # and primary ID to this non-member
@@ -354,11 +353,11 @@ foreach my $memberId (keys %{$members}) {
   my $member = $members->{$memberId};
   
   # Clear out any remaining non-member email address
-  unless (isMember($member)) {
+  unless (is_member($member)) {
     $member->{'TrxEmail'} = '';
     $member->{'Email'} = '';
   }
-  
+
   if ($member->{'TrxEmail'}) {
     my $email = $member->{'TrxEmail'};
     $trxEmail->{$email} = [] unless (exists($trxEmail->{$email}));
@@ -407,7 +406,6 @@ DUPEMAIL: {
     }
   }
 }
-exit;
 
 my $currentDate = UnixDate(ParseDate('today'), '%Y-%m-%d');
 
@@ -480,104 +478,6 @@ foreach my $memberId (keys %{$members}) {
 
 close($membersFile);
 
-sub openMembersFile {
-  my $csv = Text::CSV_XS->new ({ auto_diag => 1 });
-  
-  # Subtract one for the heading row
-  my $totalRows = `cat data/AllMembers.csv | wc -l` - 1;
-
-  open(my $members, '<:encoding(UTF-8)', 'data/AllMembers.csv')
-    or die "Couldn't open data/AllMembers.csv: $!";
-  my $headers = $csv->getline($members);
-
-  return $members, $headers, $totalRows;
-}
-
-sub clean_customer {
-  my $values = shift;
-
-  # Trim all name fields
-  foreach my $trimField (qw(Prefix FirstName LastName Suffix CasualName 
-    Address1 Address2 City State Zip)) {
-    $values->{$trimField} =~ s/^\s+//;
-    $values->{$trimField} =~ s/\s+$//;
-  }
-
-  # Remove trailing '.'
-  foreach my $trimField (qw(Prefix Suffix Address1 Address2)) {
-    $values->{$trimField} =~ s/\.$//;
-  }
-
-  # Clear all address fields if address1 is empty
-  $values->{'AddressTypeCode'} = 'HOME';
-  $values->{'AddressStatusCode'} = 'GOOD';
-  unless ($values->{'Address1'}) {
-    $values->{'Address1'} = 'NOT AVAILABLE';
-    $values->{'Address2'} = '';
-    $values->{'City'} = '';
-    $values->{'State'} = '';
-    $values->{'Zip'} = '';
-    $values->{'Country'} = '';
-    $values->{'AddressTypeCode'} = '';
-    $values->{'AddressStatusCode'} = '';
-  }
-
-  # Remove +4 and trailing - in zip
-  $values->{'Zip'} =~ s/-.*$//;
-
-  # Remove non digits in phone
-  # Discard non 10 digit phones
-  foreach my $phoneField (qw(EmergencyPhone CellPhone WorkPhone HomePhone)) {
-    $values->{$phoneField} =~ s/[^\d]//g;
-    $values->{$phoneField} = '' unless ($values->{$phoneField} =~ /\d{10}/);
-  }
-  
-  # Split home phone into area code and number
-  $values->{'HomePhoneAreaCode'} = '';
-  $values->{'HomePhoneNumber'} = '';
-  if ($values->{'HomePhone'} =~ /(\d{3})(\d{7})/) {
-    $values->{'HomePhoneAreaCode'} = $1;
-    $values->{'HomePhoneNumber'} = $2;
-  }
-
-  # Ensure valid email format (very basic)
-  $values->{'Email'} = ''
-    unless ($values->{'Email'} =~ /.*\@.*\..*/);
-  $values->{'Email'} =~ tr/[A-Z]/[a-z]/;
-  
-  # Remove non-member email to reduce duplicates, but keep
-  # it for reporting to Y staff
-  $values->{'TrxEmail'} = $values->{'Email'};
-  # $values->{'Email'} = '' unless (isMember($values));
-
-  # Add location code indicators if present
-  $values->{'PhoneLocationCode'} = $values->{'HomePhoneNumber'} ? 'HOME' : '';
-  $values->{'EmailLocationCode'} = $values->{'Email'} ? 'HOME' : '';
-  $values->{'CellLocationCode'} = $values->{'CellPhone'} ? 'HOME' : '';
-  
-  $values->{'Gender'} = getGender($values->{'Gender'});
-
-  $values->{'FormalName'} = join(' ', $values->{'FirstName'}, $values->{'LastName'});
-
-  # We may manipulate non-member membership types for family associations,
-  # but must keep the real membership type for other purposes.
-  $values->{'IsMember'} = isMember($values);
-
-  # Convert TRX IDs to Personify IDs
-  $values->{'PerMemberId'} = convert_id($values->{'MemberId'});
-
-  # dump($values);exit;
-  return $values;
-}
-
-sub getGender {
-  my $code = shift;
-
-  return 'MALE' if ($code eq 'M');
-  return 'FEMALE' if ($code eq 'F');
-  return 'OTHER';
-}
-
 sub oldestMember {
   my $members = shift;
 
@@ -616,23 +516,6 @@ sub oldestMember {
   return $oldestMember
 }
 
-sub isMember {
-  my $values = shift;
-
-  return 0 if (lc $values->{'MembershipType'} eq lc 'Non-Member');
-  return 0 if ($values->{'MembershipType'} =~ /program/i);
-
-  return 1;
-}
-
-sub billableMember {
-  my $values = shift;
-
-  return 0 unless isMember($values);
-
-  return $values->{'BillableMemberId'} eq $values->{'MemberId'};
-}
-
 sub addToFamilies {
   my $values = shift;
   my $families = shift;
@@ -656,7 +539,7 @@ sub addToFamilies {
 
   push(@{$family->{'members'}}, $values->{'MemberId'});
   
-  if (billableMember($values)) {
+  if (billable_member($values)) {
     if ($family->{'primaryId'} && 
         $family->{'primaryId'} ne $values->{'MemberId'}) {
       # compare($values, $members->{$family->{'primaryId'}});
