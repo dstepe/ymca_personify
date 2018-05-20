@@ -79,32 +79,26 @@ my @allColumns = get_template_columns($templateName);
 my $workbook = make_workbook($templateName);
 my $worksheet = make_worksheet($workbook, \@allColumns);
 
+my $csv = Text::CSV_XS->new ({ auto_diag => 1, eol => $/ });
+
 open(my $orderMaster, '>', 'data/order_master.txt')
   or die "Couldn't open data/order_master.txt: $!";
-print $orderMaster join("\t", @allColumns, 'MEMBERSHIP_TYPE', 
-  'PAYMENT_METHOD', 'RENEWAL_FEE', 'BRANCH_CODE', 'BRANCH_NAME',
-  'COMPANY_NAME', 'NEXT_BILL_DATE', 'JOIN_DATE', 'FAMILY_ID', 'PER_MEMBER_ID') . "\n";;
-
-my $csv = Text::CSV->new();
+$csv->print($orderMaster, [order_master_fields()]);
 
 my $types = {};
-# Read in membership order data
-$/ = "\r\n";
 
-open(my $orders, '<:encoding(UTF-8)', 'data/MembershipOrders.csv')
-  or die "Couldn't open data/MembershipOrders.csv: $!";
-my $headerLine = <$orders>;
-$csv->parse($headerLine) || die "Line could not be parsed: $headerLine";
-my @headers = $csv->fields();
+my($ordersFile, $headers, $totalRows) = open_data_file('data/MembershipOrders.csv');
 
+print "Processing orders\n";
+my $progress = Term::ProgressBar->new({ 'count' => $totalRows });
 my $order = 1;
-while(my $line = <$orders>) {
-  chomp $line;
+my $count = 1;
+while(my $rowIn = $csv->getline($ordersFile)) {
 
-  $csv->parse($line) || die "Line could not be parsed: $line";
+  $progress->update($count++);
 
-  my $values = map_values(\@headers, [$csv->fields()]);
-  #print Dumper($values);exit;
+  my $values = map_values($headers, $rowIn);
+  # print Dumper($values);exit;
 
   $types->{$values->{'MembershipTypeDes'}}{$values->{'PaymentMethod'}}++;
 
@@ -132,16 +126,24 @@ while(my $line = <$orders>) {
 
   $values->{'RenewMembershipFee'} =~ s/[^0-9\.]//g;
 
-  print $orderMaster join("\t", @{$record}, $values->{'MembershipTypeDes'},
-    $values->{'PaymentMethod'}, $values->{'RenewMembershipFee'}, 
-    $values->{'BranchCode'}, $values->{'MembershipBranch'}, 
+  $csv->print($orderMaster, [
+    @{$record}, 
+    $values->{'MembershipTypeDes'},
+    $values->{'PaymentMethod'}, 
+    $values->{'RenewMembershipFee'}, 
+    $values->{'BranchCode'}, 
+    $values->{'MembershipBranch'}, 
     $values->{'CompanyName'},
-    $values->{'NextBillDate'}, $values->{'JoinDate'},
-    $values->{'FamilyId'}, $values->{'PerMemberId'}) . "\n";
+    $values->{'NextBillDate'}, 
+    $values->{'JoinDate'},
+    $values->{'FamilyId'}, 
+    $values->{'PerMemberId'}
+    ]);
 
 }
 
-close($orders);
+close($ordersFile);
+close($orderMaster);
 
 # foreach my $type (sort keys %{$types}) {
 #   foreach my $method (sort keys %{$types->{$type}}) {

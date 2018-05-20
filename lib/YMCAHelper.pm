@@ -21,11 +21,12 @@ our @EXPORT_OK = qw(
   convert_id
   compare
   dump
-  open_members_file
+  open_data_file
   clean_customer
   get_gender
   is_member
   billable_member
+  order_master_fields
 );
 
 # these are exported by default.
@@ -40,10 +41,11 @@ our @EXPORT = qw(
   convert_id
   compare
   dump
-  open_members_file
+  open_data_file
   clean_customer
   is_member
   billable_member
+  order_master_fields
 );
 
 sub get_template_columns {
@@ -88,7 +90,11 @@ sub write_record {
   my $record = shift;
 
   for(my $i = 0; $i < scalar(@{$record}); $i++) {
-    $worksheet->write($row, $i, $record->[$i]);
+    if ($record->[$i] =~ /^0.+/) {
+      $worksheet->write_string($row, $i, $record->[$i]);
+    } else {
+      $worksheet->write($row, $i, $record->[$i]);
+    }   
   }
 }
 
@@ -145,9 +151,8 @@ sub make_record {
 
 sub convert_id {
   my $id = shift;
-  return $id;
 
-  # $id =~ s/^P/4/;
+  $id =~ s/^P/4/;
 
   return sprintf('%012d', $id);
 }
@@ -179,17 +184,20 @@ sub dump {
   print $table;  
 }
 
-sub open_members_file {
+sub open_data_file {
+  my $file = shift;
+
   my $csv = Text::CSV_XS->new ({ auto_diag => 1 });
   
   # Subtract one for the heading row
-  my $totalRows = `cat data/AllMembers.csv | wc -l` - 1;
+  my $totalRows = `cat $file | wc -l` - 1;
 
-  open(my $members, '<:encoding(UTF-8)', 'data/AllMembers.csv')
-    or die "Couldn't open data/AllMembers.csv: $!";
-  my $headers = $csv->getline($members);
+  open(my $fileHndl, '<:encoding(UTF-8)', $file)
+    or die "Couldn't open $file: $!";
+  
+  my $headers = $csv->getline($fileHndl);
 
-  return $members, $headers, $totalRows;
+  return $fileHndl, $headers, $totalRows;
 }
 
 sub clean_customer {
@@ -292,6 +300,57 @@ sub billable_member {
   return 0 unless is_member($values);
 
   return $values->{'BillableMemberId'} eq $values->{'MemberId'};
+}
+
+sub order_master_fields {
+
+  my @orderMasterFields = qw(
+    OrderNo
+    OrderDate
+    OrgId
+    OrgUnitId
+    BillCustomerId
+    BillAddressTypeCode
+    ShipCustomerId
+    OrderMethodCode
+    OrderStatusCode
+    OrderStatusDate
+    OrdstsReasonCode
+    ClOrderMethodCode
+    CouponCode
+    Application
+    AckLetterMethodCode
+    PoNumber
+    ConfirmationNo
+    AckLetterPrintDate
+    ConfirmationDate
+    OrderCompleteFlag
+    AdvContractId
+    AdvAgencyCustId
+    BillSalesTerritory
+    FndGiveEmployerCreditFlag
+    ShipSalesTerritory
+    PosFlag
+    PosCountryCode
+    PosState
+    PosPostalCode
+    AdvRateCardYearCode
+    AdvAgencySubCustId
+    EmployerCustomerId
+    OldOrderNo
+    MembershipType
+    PaymentMethod 
+    RenewalFee
+    BranchCode
+    MembershipBranch
+    CompanyName
+    NextBillDate
+    JoinDate
+    FamilyId
+    PerMemberId
+  );
+
+  return @orderMasterFields;
 }
 
 1;

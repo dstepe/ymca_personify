@@ -24,7 +24,6 @@ my $cusIndColumnMap = {
   'FIRST_NAME'                           => { 'type' => 'record', 'source' => 'FirstName' },
   'LAST_NAME'                            => { 'type' => 'record', 'source' => 'LastName' },
   'NAME_SUFFIX'                          => { 'type' => 'record', 'source' => 'Suffix' },
-  'NAME_CREDENTIALS'                     => { 'type' => 'record', 'source' => 'GMVYMCA' },
   'NICKNAME'                             => { 'type' => 'record', 'source' => 'CasualName' },
   'CUSTOMER_CLASS_CODE'                  => { 'type' => 'static', 'source' => 'INDIV' },
   'CUSTOMER_STATUS_CODE'                 => { 'type' => 'static', 'source' => 'ACTIVE' },
@@ -149,7 +148,7 @@ my $addrLnkWorksheet = make_worksheet($addrLnkWorkbook, \@addrLnkAllColumns);
 
 my $csv = Text::CSV_XS->new ({ auto_diag => 1 });
 
-my($membersFile, $headers, $totalRows) = open_members_file();
+my($membersFile, $headers, $totalRows) = open_data_file('data/AllMembers.csv');
 
 print "Processing customers\n";
 my $progress = Term::ProgressBar->new({ 'count' => $totalRows });
@@ -213,7 +212,7 @@ foreach my $memberId (keys %{$members}) {
 
     $member->{'MembershipType'} = $familyTypes[0];
     $member->{'BillableMemberId'} 
-      = $families->{$member->{'FamilyId'}}{$member->{'MembershipType'}}{'primaryId'};
+      = $families->{$member->{'FamilyId'}}{$member->{'MembershipType'}}{'PrimaryId'};
   }
 
   addToFamilies($member, $families, $conflicts);
@@ -235,35 +234,35 @@ foreach my $familyId (keys %{$families}) {
 
     my $family = $families->{$familyId}{$membershipType};
 
-    if ($family->{'primaryId'}) {
+    if ($family->{'PrimaryId'}) {
       $primaryByBillable++;
     } else {
       my $familyMembers = [];
-      foreach my $memberId (@{$family->{'members'}}) {
+      foreach my $memberId (@{$family->{'Members'}}) {
         push(@{$familyMembers}, $members->{$memberId});
       }
 
       my $oldestMember = oldestMember($familyMembers);
 
-      $family->{'primaryId'} = $oldestMember->{'MemberId'};
-      $primaryByBirth++ if ($family->{'primaryId'});
+      $family->{'PrimaryId'} = $oldestMember->{'MemberId'};
+      $primaryByBirth++ if ($family->{'PrimaryId'});
     }
 
-    die "Unable to find primary for $familyId" unless ($family->{'primaryId'});
+    die "Unable to find primary for $familyId" unless ($family->{'PrimaryId'});
 
-    $members->{$family->{'primaryId'}}{'IsFamilyPrimary'} = 1;
+    $members->{$family->{'PrimaryId'}}{'IsFamilyPrimary'} = 1;
 
     # Assign email to the primary if they don't have one,
     # but another family member does. In the case of changing
     # family email that goes into Personify, we will also
     # change the TRX email data and not worry about fixing it.
-    unless ($members->{$family->{'primaryId'}}{'Email'}) {
-      foreach my $familyMemberId (sort @{$family->{'members'}}) {
-        $members->{$family->{'primaryId'}}{'Email'}
+    unless ($members->{$family->{'PrimaryId'}}{'Email'}) {
+      foreach my $familyMemberId (sort @{$family->{'Members'}}) {
+        $members->{$family->{'PrimaryId'}}{'Email'}
           = $members->{$familyMemberId}{'Email'};
-        $members->{$family->{'primaryId'}}{'TrxEmail'}
+        $members->{$family->{'PrimaryId'}}{'TrxEmail'}
           = $members->{$familyMemberId}{'TrxEmail'};
-        last if ($members->{$family->{'primaryId'}}{'Email'});
+        last if ($members->{$family->{'PrimaryId'}}{'Email'});
       }
     }
 
@@ -271,9 +270,9 @@ foreach my $familyId (keys %{$families}) {
     # stomp any any family member's own email, but there is no
     # way to be completely accurate. The choice is to prefer
     # the primary.
-    if ($members->{$family->{'primaryId'}}{'Email'}) {
-      foreach my $familyMemberId (@{$family->{'members'}}) {
-        next if ($familyMemberId eq $family->{'primaryId'});
+    if ($members->{$family->{'PrimaryId'}}{'Email'}) {
+      foreach my $familyMemberId (@{$family->{'Members'}}) {
+        next if ($familyMemberId eq $family->{'PrimaryId'});
         $members->{$familyMemberId}{'Email'} = '';
         $members->{$familyMemberId}{'TrxEmail'} = '';
         $members->{$familyMemberId}{'EmailLocationCode'} = '';
@@ -289,13 +288,13 @@ CONFLICTS: {
     'B MemberId', 'B BillableId', 'B MembershipType']);
   for(my $row = 0; $row < scalar(@{$conflicts}); $row++) {
     write_record($conflictWorksheet, $row + 1, [
-      $conflicts->[$row]{'familyId'},
-      $conflicts->[$row]{'a-memberId'},
-      $conflicts->[$row]{'a-billableId'},
-      $conflicts->[$row]{'a-membershipType'},
-      $conflicts->[$row]{'b-memberId'},
-      $conflicts->[$row]{'b-billableId'},
-      $conflicts->[$row]{'b-membershipType'},
+      $conflicts->[$row]{'FamilyId'},
+      $conflicts->[$row]{'A-MemberId'},
+      $conflicts->[$row]{'A-BillableId'},
+      $conflicts->[$row]{'A-MembershipType'},
+      $conflicts->[$row]{'B-MemberId'},
+      $conflicts->[$row]{'B-BillableId'},
+      $conflicts->[$row]{'B-membershipType'},
     ]);
   }
 }
@@ -334,7 +333,7 @@ OVERSUBSCRIBED: {
     foreach my $type (keys %{$overSubscribedFamilies->{$familyId}}) {
       push(
         @{$values}, 
-        $overSubscribedFamilies->{$familyId}{$type}{'primaryId'},
+        $overSubscribedFamilies->{$familyId}{$type}{'PrimaryId'},
         $type
       );
     }
@@ -431,8 +430,8 @@ foreach my $memberId (keys %{$members}) {
   }
 
   my $family = $families->{$member->{'FamilyId'}}{uc $member->{'MembershipType'}};
-  my $primaryMember = $members->{$family->{'primaryId'}};
-  my $isPrimary = $member->{'MemberId'} eq $family->{'primaryId'};
+  my $primaryMember = $members->{$family->{'PrimaryId'}};
+  my $isPrimary = $member->{'MemberId'} eq $family->{'PrimaryId'};
 
   $member->{'CurrentDate'} = $currentDate;
 
@@ -463,6 +462,7 @@ foreach my $memberId (keys %{$members}) {
   }
 
   my $cusIndRecord = make_record($member, \@cusIndAllColumns, $cusIndColumnMap);
+
   write_record($cusIndWorksheet, $indRow++, $cusIndRecord);
 
   unless ($isPrimary) {
@@ -530,33 +530,33 @@ sub addToFamilies {
 
   unless (exists($families->{$familyId}{$membershipType})) {
     $families->{$familyId}{$membershipType} = {
-      'primaryId' => '',
-      'members' => [],
+      'PrimaryId' => '',
+      'Members' => [],
     };
   }
 
   my $family = $families->{$familyId}{$membershipType};
 
-  push(@{$family->{'members'}}, $values->{'MemberId'});
+  push(@{$family->{'Members'}}, $values->{'MemberId'});
   
   if (billable_member($values)) {
-    if ($family->{'primaryId'} && 
-        $family->{'primaryId'} ne $values->{'MemberId'}) {
-      # compare($values, $members->{$family->{'primaryId'}});
+    if ($family->{'PrimaryId'} && 
+        $family->{'PrimaryId'} ne $values->{'MemberId'}) {
+      # compare($values, $members->{$family->{'PrimaryId'}});
       # exit;
-      my $conflictedMember = $members->{$family->{'primaryId'}};
+      my $conflictedMember = $members->{$family->{'PrimaryId'}};
       push(@{$conflicts}, {
-        'familyId' => $familyId,
-        'a-memberId' => $values->{'MemberId'},
-        'a-billableId' => $values->{'BillableMemberId'},
-        'a-membershipType' => $values->{'MembershipType'},
-        'b-memberId' => $conflictedMember->{'MemberId'},
-        'b-billableId' => $conflictedMember->{'BillableMemberId'},
-        'b-membershipType' => $conflictedMember->{'MembershipType'},
+        'FamilyId' => $familyId,
+        'A-MemberId' => $values->{'MemberId'},
+        'A-BillableId' => $values->{'BillableMemberId'},
+        'A-MembershipType' => $values->{'MembershipType'},
+        'B-MemberId' => $conflictedMember->{'MemberId'},
+        'B-BillableId' => $conflictedMember->{'BillableMemberId'},
+        'B-membershipType' => $conflictedMember->{'MembershipType'},
       });
       return;
     } 
 
-    $family->{'primaryId'} = $values->{'MemberId'};
+    $family->{'PrimaryId'} = $values->{'MemberId'};
   }
 }

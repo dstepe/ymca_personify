@@ -11,52 +11,53 @@ use Data::Dumper;
 use Excel::Writer::XLSX;
 use Date::Manip;
 use Text::CSV;
+use Term::ProgressBar;
 
 my $templateName = 'DCT_ORDER_DETAIL-32358';
 
 my $columnMap = {
-  'ORDER_NO'                           => { 'type' => 'record', 'source' => 'orderNo' },
+  'ORDER_NO'                           => { 'type' => 'record', 'source' => 'OrderNo' },
   'ORDER_LINE_NO'                      => { 'type' => 'static', 'source' => '1' },
-  'ORDER_DATE'                         => { 'type' => 'record', 'source' => 'orderDate' },
-  'SHIP_CUSTOMER_ID'                   => { 'type' => 'record', 'source' => 'shipCustomerId' },
+  'ORDER_DATE'                         => { 'type' => 'record', 'source' => 'OrderDate' },
+  'SHIP_CUSTOMER_ID'                   => { 'type' => 'record', 'source' => 'ShipCustomerId' },
   'SHIP_ADDRESS_TYPE_CODE'             => { 'type' => 'static', 'source' => 'HOME' },
-  'INVOICE_NO'                         => { 'type' => 'record', 'source' => 'trxInvoiceId' },
-  'INVOICE_DATE'                       => { 'type' => 'record', 'source' => 'orderDate' },
+  'INVOICE_NO'                         => { 'type' => 'record', 'source' => 'TrxInvoiceId' },
+  'INVOICE_DATE'                       => { 'type' => 'record', 'source' => 'OrderDate' },
   'SUBSYSTEM'                          => { 'type' => 'static', 'source' => 'MBR' },
-  'PRODUCT_CODE'                       => { 'type' => 'record', 'source' => 'productCode' },
+  'PRODUCT_CODE'                       => { 'type' => 'record', 'source' => 'ProductCode' },
   'PARENT_PRODUCT'                     => { 'type' => 'static', 'source' => 'GMV' },
   'LINE_TYPE'                          => { 'type' => 'static', 'source' => 'IP' },
   'LINE_STATUS_CODE'                   => { 'type' => 'static', 'source' => 'A' },
-  'LINE_STATUS_DATE'                   => { 'type' => 'record', 'source' => 'orderDate' },
+  'LINE_STATUS_DATE'                   => { 'type' => 'record', 'source' => 'OrderDate' },
   'FULFILL_STATUS_CODE'                => { 'type' => 'static', 'source' => 'A' },
-  'FULFILL_STATUS_DATE'                => { 'type' => 'record', 'source' => 'orderDate' },
+  'FULFILL_STATUS_DATE'                => { 'type' => 'record', 'source' => 'OrderDate' },
   'RECOGNITION_STATUS_CODE'            => { 'type' => 'static', 'source' => 'C' },
   'RATE_STRUCTURE'                     => { 'type' => 'static', 'source' => 'LIST' },
-  'RATE_CODE'                          => { 'type' => 'record', 'source' => 'rateCode' },
+  'RATE_CODE'                          => { 'type' => 'record', 'source' => 'RateCode' },
   'TAXABLE_FLAG'                       => { 'type' => 'static', 'source' => 'Y' },
   'TAX_CATEGORY_CODE'                  => { 'type' => 'static', 'source' => 'SALES' },
   'REQUESTED_QTY'                      => { 'type' => 'static', 'source' => '1' },
   'ORDER_QTY'                          => { 'type' => 'static', 'source' => '1' },
-  'TOTAL_AMOUNT'                       => { 'type' => 'record', 'source' => 'totalAmount' },
-  'CYCLE_BEGIN_DATE'                   => { 'type' => 'record', 'source' => 'beginDate' },
-  'CYCLE_END_DATE'                     => { 'type' => 'record', 'source' => 'endDate' },
+  'TOTAL_AMOUNT'                       => { 'type' => 'record', 'source' => 'TotalAmount' },
+  'CYCLE_BEGIN_DATE'                   => { 'type' => 'record', 'source' => 'BeginDate' },
+  'CYCLE_END_DATE'                     => { 'type' => 'record', 'source' => 'EndDate' },
   'BACK_ISSUE_FLAG'                    => { 'type' => 'static', 'source' => 'Y' },
-  'INITIAL_BEGIN_DATE'                 => { 'type' => 'record', 'source' => 'joinDate' },
+  'INITIAL_BEGIN_DATE'                 => { 'type' => 'record', 'source' => 'JoinDate' },
   'RETURNED_QTY'                       => { 'type' => 'static', 'source' => '0' },
-  'PAYOR_CUSTOMER_ID'                  => { 'type' => 'record', 'source' => 'billCustomerId' },
+  'PAYOR_CUSTOMER_ID'                  => { 'type' => 'record', 'source' => 'BillCustomerId' },
   'RECEIPT_TYPE'                       => { 'type' => 'static', 'source' => 'CASH' },
   'RECEIPT_CURRENCY_CODE'              => { 'type' => 'static', 'source' => 'USD' },
-  'RECEIPT_DATE'                       => { 'type' => 'record', 'source' => 'orderDate' },
+  'RECEIPT_DATE'                       => { 'type' => 'record', 'source' => 'OrderDate' },
   'XRATE'                              => { 'type' => 'static', 'source' => '1' },
-  'PAYMENT_AMOUNT'                     => { 'type' => 'record', 'source' => 'totalAmount' },
+  'PAYMENT_AMOUNT'                     => { 'type' => 'record', 'source' => 'TotalAmount' },
   'RECEIPT_STATUS_CODE'                => { 'type' => 'static', 'source' => 'A' },
-  'RECEIPT_STATUS_DATE'                => { 'type' => 'record', 'source' => 'orderDate' },
+  'RECEIPT_STATUS_DATE'                => { 'type' => 'record', 'source' => 'OrderDate' },
   'CL_LATE_FEE_FLAG'                   => { 'type' => 'static', 'source' => 'N' },
   'MANUAL_DISCOUNT_FLAG'               => { 'type' => 'static', 'source' => 'N' },
-  'DISCOUNT_CODE'                      => { 'type' => 'record', 'source' => 'discountCode' },
-  'ACTUAL_DISCOUNT_AMOUNT'             => { 'type' => 'record', 'source' => 'discountAmount' },
+  'DISCOUNT_CODE'                      => { 'type' => 'record', 'source' => 'DiscountCode' },
+  'ACTUAL_DISCOUNT_AMOUNT'             => { 'type' => 'record', 'source' => 'DiscountAmount' },
   'ACTUAL_SHIP_AMOUNT'                 => { 'type' => 'static', 'source' => '0' },
-  'ACTUAL_TAX_AMOUNT'                  => { 'type' => 'record', 'source' => 'taxPaidAmount' },
+  'ACTUAL_TAX_AMOUNT'                  => { 'type' => 'record', 'source' => 'TaxPaidAmount' },
   'COMMENTS_ON_INVOICE_FLAG'           => { 'type' => 'static', 'source' => 'N' },
   'AUTO_PAY_METHOD_CODE'               => { 'type' => 'static', 'source' => 'NONE' },
   'ATTENDANCE_FLAG'                    => { 'type' => 'static', 'source' => 'N' },
@@ -68,51 +69,6 @@ my $columnMap = {
   'TOTAL_DEFERRED_TAX'                 => { 'type' => 'static', 'source' => '0' },
   'TOTAL_DEPOSIT_TAX'                  => { 'type' => 'static', 'source' => '0' },
 };
-
-my @orderMasterFields = qw(
-  orderNo
-  orderDate
-  orgId
-  orgUnitId
-  billCustomerId
-  billAddressTypeCode
-  shipCustomerId
-  orderMethodCode
-  orderStatusCode
-  orderStatusDate
-  ordstsReasonCode
-  clOrderMethodCode
-  couponCode
-  application
-  ackLetterMethodCode
-  poNumber
-  confirmationNo
-  ackLetterPrintDate
-  confirmationDate
-  orderCompleteFlag
-  advContractId
-  advAgencyCustId
-  billSalesTerritory
-  fndGiveEmployerCreditFlag
-  shipSalesTerritory
-  posFlag
-  posCountryCode
-  posState
-  posPostalCode
-  advRateCardYearCode
-  advAgencySubCustId
-  employerCustomerId
-  oldOrderNo
-  membershipType
-  paymentMethod 
-  renewalFee
-  branchCode
-  membershipBranch
-  companyName
-  nextBillDate
-  joinDate
-  familyId
-);
 
 my $taxRates = {
   'Atrium' => .07,
@@ -135,133 +91,122 @@ my $cycleDurations = {
   'Quarterly' => '3 months',
 };
 
-$/ = "\r\n";
-
-my $csv = Text::CSV->new();
+my $csv = Text::CSV_XS->new ({ auto_diag => 1 });
 
 my $prdRates = {};
-open(my $rates, '<:encoding(UTF-8)', 'data/PrdRates.csv')
-  or die "Couldn't open data/PrdRates.csv: $!";
-<$rates>;
-while (my $line = <$rates>) {
-  chomp $line;
+my($rateFile, $headers, $totalRows) = open_data_file('data/PrdRates.csv');
+while(my $rowIn = $csv->getline($rateFile)) {
+  my $values = map_values($headers, $rowIn);
 
-  $csv->parse($line) || die "Line could not be parsed: $line";
-
-  my @values = $csv->fields();
-
-  my $type = uc $values[0];
+  my $type = uc $values->{'Current Type'};
   $prdRates->{$type} = {
-    'newType' => $values[1],
+    'NewType' => $values->{'New Type'},
   };
 
-  ($prdRates->{$type}{'Monthly E-Pay'} = $values[2]) =~ s/[^0-9\.]//g;
-  ($prdRates->{$type}{'Annual'} = $values[3]) =~ s/[^0-9\.]//g;
+  ($prdRates->{$type}{'Monthly E-Pay'} = $values->{'Monthly Amt'}) =~ s/[^0-9\.]//g;
+  ($prdRates->{$type}{'Annual'} = $values->{'Annual Amt'}) =~ s/[^0-9\.]//g;
 }
-close($rates);
+close($rateFile);
 
 my $membershipMap = {};
-open(my $map, '<:encoding(UTF-8)', 'data/MembershipMapping.csv')
-  or die "Couldn't open data/MembershipMapping.csv: $!";
-<$map>;
-while (my $line = <$map>) {
-  chomp $line;
+my $mappingFile;
+($mappingFile, $headers, $totalRows) = open_data_file('data/MembershipMapping.csv');
+while(my $rowIn = $csv->getline($mappingFile)) {
+  my $values = map_values($headers, $rowIn);
 
-  $csv->parse($line) || die "Line could not be parsed: $line";
-
-  my @values = $csv->fields();
-
-  $membershipMap->{uc $values[1]} = {
-    'branch' => $values[0],
-    'paymentMethod' => $values[2],
-    'productCode' => $values[3],
-    'rateCode' => $values[4],
-    'marketCode' => $values[5],
-    'discountCode' => $values[6],
-    'discountAmount' => $values[7],
-    'purchasingGroup' => $values[8],
-    'discount' => $values[9],
+  $membershipMap->{uc $values->{'Description'}} = {
+    'Branch' => $values->{'Branch'},
+    'PaymentMethod' => $values->{'Current PaymentMethod'},
+    'ProductCode' => $values->{'Membership Product Code'},
+    'RateCode' => $values->{'Rate Code'},
+    'MarketCode' => $values->{'Market Code'},
+    'DiscountCode' => $values->{'Discount Code'},
+    'DiscountAmount' => $values->{'Discount Amount'},
+    'PurchasingGroup' => $values->{'Purchasing Group'},
+    'Discount' => $values->{'Discount'},
   };
 }
-close($map);
-
-$/ = "\n";
+close($mappingFile);
 
 my @allColumns = get_template_columns($templateName);
 
 my $workbook = make_workbook($templateName);
 my $worksheet = make_worksheet($workbook, \@allColumns);
 
-open(my $orderMaster, '<', 'data/order_master.txt')
-  or die "Couldn't open data/order_master.txt: $!";
-<$orderMaster>; # eat the headers
+my $ordersFile;
+($ordersFile, $headers, $totalRows) = open_data_file('data/order_master.txt');
 
 my $missingMembershipMap = {};
+my $progress = Term::ProgressBar->new({ 'count' => $totalRows });
 my $row = 1;
-while(<$orderMaster>) {
-  chomp;
-  my $values = split_values($_, @orderMasterFields);
-  my $membershipTypeKey = uc $values->{'membershipType'};
+my $count = 1;
+while(my $rowIn = $csv->getline($ordersFile)) {
+
+  $progress->update($count++);
+
+  my $values = map_values($headers, $rowIn);
+
+  my $membershipTypeKey = uc $values->{'MembershipType'};
 
   my $taxRate = $taxRates->{'Other'};
 
-  if (exists($taxRates->{$values->{'membershipBranch'}})) {
-    $taxRate = $taxRates->{$values->{'membershipBranch'}};
+  if (exists($taxRates->{$values->{'MembershipBranch'}})) {
+    $taxRate = $taxRates->{$values->{'MembershipBranch'}};
   }
 
-  my $orderDate = ParseDate($values->{'orderDate'});
-  $values->{'beginDate'} = UnixDate($orderDate, '%Y-%m-%d');
-  my $cycle = $cycleDurations->{$values->{'paymentMethod'}};
-  $values->{'endDate'} = UnixDate(DateCalc(DateCalc($orderDate, '+' . $cycle), '-1 day'), '%Y-%m-%d');
+  my $orderDate = ParseDate($values->{'OrderDate'});
+  $values->{'BeginDate'} = UnixDate($orderDate, '%Y-%m-%d');
+  my $cycle = $cycleDurations->{$values->{'PaymentMethod'}};
+  $values->{'EndDate'} = UnixDate(DateCalc(DateCalc($orderDate, '+' . $cycle), '-1 day'), '%Y-%m-%d');
 
-  $values->{'trxInvoiceId'} = '';
-  $values->{'productCode'} = '';
-  $values->{'rateCode'} = '';
-  $values->{'discountAmount'} = '';
+  $values->{'TrxInvoiceId'} = '';
+  $values->{'ProductCode'} = '';
+  $values->{'RateCode'} = '';
+  $values->{'DiscountAmount'} = '';
 
-  my $billAmount = $values->{'renewalFee'};
+  my $billAmount = $values->{'RenewalFee'};
 
   my $prd = '';
   if ($membershipTypeKey =~ /PRD/) {
     ($prd = $membershipTypeKey) =~ s/\-.*//;
     die "Missing PRD mapping for $prd" unless (exists($prdRates->{$prd}));
-    $billAmount = $prdRates->{$prd}{$values->{'paymentMethod'}}
+    $billAmount = $prdRates->{$prd}{$values->{'PaymentMethod'}}
   }
 
   my $discount = '';
   if (exists($membershipMap->{$membershipTypeKey})) {
     my $map = $membershipMap->{$membershipTypeKey};
 
-    my $branchCode = $branchProgramCodes->{$values->{'membershipBranch'}};
+    my $branchCode = $branchProgramCodes->{$values->{'MembershipBranch'}};
     
-    $values->{'productCode'} = $map->{'productCode'};
-    $values->{'rateCode'} = $map->{'rateCode'};
-    $values->{'discountCode'} = $map->{'discountCode'};
-    if (!$map->{'branch'}) {
-      $values->{'productCode'} =~ s/\{BRANCH\}/$branchCode/g;
-      $values->{'discountCode'} =~ s/\{BRANCH\}/$branchCode/g;
+    $values->{'ProductCode'} = $map->{'ProductCode'};
+    $values->{'RateCode'} = $map->{'RateCode'};
+    $values->{'DiscountCode'} = $map->{'DiscountCode'};
+    if (!$map->{'Branch'}) {
+      $values->{'ProductCode'} =~ s/\{BRANCH\}/$branchCode/g;
+      $values->{'DiscountCode'} =~ s/\{BRANCH\}/$branchCode/g;
     }
 
-    $discount = $map->{'discountAmount'};
+    $discount = $map->{'DiscountAmount'};
   } else {
     $missingMembershipMap->{$membershipTypeKey}++;
   }
 
-  $values->{'discountAmount'} = 0;
+  $values->{'DiscountAmount'} = 0;
   if ($discount =~ /\%/) {
     $discount =~ s/\%//;
     $discount /= 100;
 
-    $values->{'discountAmount'} = $billAmount * $discount;
+    $values->{'DiscountAmount'} = $billAmount * $discount;
   } elsif ($discount =~ /\$/) {
     $discount =~ s/\$//;
 
-    $values->{'discountAmount'} = $discount;
+    $values->{'DiscountAmount'} = $discount;
   }
 
-  $values->{'totalAmount'} = $billAmount - $values->{'discountAmount'};
+  $values->{'TotalAmount'} = $billAmount - $values->{'DiscountAmount'};
 
-  $values->{'taxPaidAmount'} = sprintf("%.2f", $values->{'totalAmount'} * $taxRate);
+  $values->{'TaxPaidAmount'} = sprintf("%.2f", $values->{'TotalAmount'} * $taxRate);
 
   write_record(
     $worksheet,
@@ -271,6 +216,6 @@ while(<$orderMaster>) {
 
 }
 
-close($orderMaster);
+close($ordersFile);
 
 print Dumper($missingMembershipMap);
