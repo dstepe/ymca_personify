@@ -37,13 +37,13 @@ my $cusIndColumnMap = {
   'STATE'                                => { 'type' => 'record', 'source' => 'PrimaryState' },
   'POSTAL_CODE'                          => { 'type' => 'record', 'source' => 'PrimaryZip' },
   'COUNTRY_CODE'                         => { 'type' => 'record', 'source' => 'PrimaryCountry' },
-  'ADDRESS_TYPE_CODE'                    => { 'type' => 'static', 'source' => 'HOME' },
-  'ADDRESS_STATUS_CODE'                  => { 'type' => 'static', 'source' => 'GOOD' },
-  'PHONE_AREA_CODE'                      => { 'type' => 'record', 'source' => 'HomePhone' },
-  'PRIMARY_PHONE'                        => { 'type' => 'record', 'source' => 'HomePhone' },
-  'PRIMARY_PHONE_LOCATION_CODE'          => { 'type' => 'static', 'source' => 'HOME' },
+  'ADDRESS_TYPE_CODE'                    => { 'type' => 'record', 'source' => 'PrimaryAddressTypeCode' },
+  'ADDRESS_STATUS_CODE'                  => { 'type' => 'record', 'source' => 'PrimaryAddressStatusCode' },
+  'PHONE_AREA_CODE'                      => { 'type' => 'record', 'source' => 'HomePhoneAreaCode' },
+  'PRIMARY_PHONE'                        => { 'type' => 'record', 'source' => 'HomePhoneNumber' },
+  'PRIMARY_PHONE_LOCATION_CODE'          => { 'type' => 'record', 'source' => 'PhoneLocationCode' },
   'PRIMARY_EMAIL_ADDRESS'                => { 'type' => 'record', 'source' => 'Email' },
-  'PRIMARY_EMAIL_LOCATION_CODE'          => { 'type' => 'static', 'source' => 'HOME' },
+  'PRIMARY_EMAIL_LOCATION_CODE'          => { 'type' => 'record', 'source' => 'EmailLocationCode' },
   'ALLOW_PHONE_FLAG'                     => { 'type' => 'static', 'source' => 'Y' },
   'ALLOW_FAX_FLAG'                       => { 'type' => 'static', 'source' => 'Y' },
   'ALLOW_EMAIL_FLAG'                     => { 'type' => 'static', 'source' => 'Y' },
@@ -85,8 +85,8 @@ my $cusIndColumnMap = {
   'SOLICITOR_ACTIVE_FLAG'                => { 'type' => 'static', 'source' => 'N' },
   'PRIMARY_SEARCH_GROUP_OVERRIDE_FLAG'   => { 'type' => 'static', 'source' => 'N' },
   'GUEST_CHECKOUT_FLAG'                  => { 'type' => 'static', 'source' => 'N' },
-  'PRIMARY_MOBILE_PHONE'                 => { 'type' => 'static', 'source' => 'CellPhone' },
-  'PRIMARY_MOBILE_PHONE_LOCATION_CODE'   => { 'type' => 'static', 'source' => 'HOME' },
+  'PRIMARY_MOBILE_PHONE'                 => { 'type' => 'record', 'source' => 'CellPhone' },
+  'PRIMARY_MOBILE_PHONE_LOCATION_CODE'   => { 'type' => 'record', 'source' => 'CellLocationCode' },
   'PUBLISH_PRIMARY_MOBILE_PHONE_FLAG'    => { 'type' => 'static', 'source' => 'N' },
 };
 
@@ -152,7 +152,6 @@ my $progress = Term::ProgressBar->new({ 'count' => $totalRows });
 
 my $members = {};
 my $families = {};
-my $familyOldestMember = {};
 my $conflicts = [];
 my $noFamily = [];
 my $count = 1;
@@ -161,8 +160,9 @@ while(my $rowIn = $csv->getline($membersFile)) {
   $progress->update($count++);
 
   my $values = clean_customer(map_values($headers, $rowIn));
-  # next unless ($values->{'FamilyId'} eq 'F365293034');
-  # print Dumper($values); exit;
+  # next unless ($values->{'FamilyId'} eq 'F378093670');
+  # next unless (lc $values->{'TrxEmail'} eq 'lljennings99@gmail.com');
+  # dump($values); exit;
 
   $members->{$values->{'MemberId'}} = $values;
 
@@ -176,9 +176,10 @@ while(my $rowIn = $csv->getline($membersFile)) {
     next;
   }
 
-  $values->{'FormalName'} = $values->{'FirstName'} . ' ' . $values->{'LastName'};
+  # We will determine if the member is the primary later.
+  $values->{'IsFamilyPrimary'} = 0;
 
-  addToFamilies($values, $families, $conflicts, $familyOldestMember);
+  addToFamilies($values, $families, $conflicts);
 }
 
 close($membersFile);
@@ -189,7 +190,7 @@ $progress = Term::ProgressBar->new({ 'count' => scalar(keys %{$members}) });
 $count = 1;
 my $overSubscribedFamilies = {};
 foreach my $memberId (keys %{$members}) {
-  $progress->update($count);
+  $progress->update($count++);
   my $member = $members->{$memberId};
   next if (isMember($member));
 
@@ -211,7 +212,7 @@ foreach my $memberId (keys %{$members}) {
       = $families->{$member->{'FamilyId'}}{$member->{'MembershipType'}}{'primaryId'};
   }
 
-  addToFamilies($member, $families, $conflicts, $familyOldestMember);
+  addToFamilies($member, $families, $conflicts);
 }
 
 # Find families with no primary and use oldest member
@@ -225,7 +226,7 @@ my $missingPrimary = 0;
 my $familyCount = 0;
 foreach my $familyId (keys %{$families}) {
   foreach my $membershipType (keys %{$families->{$familyId}}) {
-    $progress->update($count);
+    $progress->update($count++);
     $familyCount++;
 
     my $family = $families->{$familyId}{$membershipType};
@@ -233,14 +234,43 @@ foreach my $familyId (keys %{$families}) {
     if ($family->{'primaryId'}) {
       $primaryByBillable++;
     } else {
-      if (exists($familyOldestMember->{$familyId})) {
-        $family->{'primaryId'}
-          = $familyOldestMember->{$familyId}{'memberId'};
-        $primaryByBirth++;
+      my $familyMembers = [];
+      foreach my $memberId (@{$family->{'members'}}) {
+        push(@{$familyMembers}, $members->{$memberId});
+      }
+
+      my $oldestMember = oldestMember($familyMembers);
+
+      $family->{'primaryId'} = $oldestMember->{'MemberId'};
+      $primaryByBirth++ if ($family->{'primaryId'});
+    }
+
+    die "Unable to find primary for $familyId" unless ($family->{'primaryId'});
+
+    $members->{$family->{'primaryId'}}{'IsFamilyPrimary'} = 1;
+
+    # Assign email to the primary if they don't have one,
+    # but another family member does.
+    unless ($members->{$family->{'primaryId'}}{'Email'}) {
+      foreach my $familyMemberId (sort @{$family->{'members'}}) {
+        $members->{$family->{'primaryId'}}{'Email'}
+          = $members->{$familyMemberId}{'Email'};
+        last if ($members->{$family->{'primaryId'}}{'Email'});
       }
     }
 
-    $missingPrimary++ unless ($family->{'primaryId'});
+    # Remove the email from any other family members
+    if ($members->{$family->{'primaryId'}}{'Email'}) {
+      my $primaryEmail = lc $members->{$family->{'primaryId'}}{'Email'};
+
+      foreach my $familyMemberId (@{$family->{'members'}}) {
+        next if ($familyMemberId eq $family->{'primaryId'});
+        $members->{$familyMemberId}{'Email'} = '';
+        $members->{$familyMemberId}{'EmailLocationCode'} = '';
+        # $members->{$familyMemberId}{'Email'} = ''
+        #   if (lc $members->{$familyMemberId}{'Email'} eq $primaryEmail);
+      }
+    }
   }
 }
 
@@ -305,6 +335,64 @@ OVERSUBSCRIBED: {
   }
 }
 
+print "Checking for duplicate email\n";
+my $trxEmail = {};
+my $activeEmail = {};
+$progress = Term::ProgressBar->new({ 'count' => scalar(keys %{$members}) });
+$count = 1;
+foreach my $memberId (keys %{$members}) {
+  $progress->update($count++);
+  my $member = $members->{$memberId};
+  
+  if ($member->{'TrxEmail'}) {
+    my $email = lc $member->{'TrxEmail'};
+    $trxEmail->{$email} = [] unless (exists($trxEmail->{$email}));
+    push(@{$trxEmail->{$email}}, $member);
+  }
+
+  if ($member->{'Email'}) {
+    my $email = lc $member->{'Email'};
+    $activeEmail->{$email} = [] unless (exists($activeEmail->{$email}));
+    push(@{$activeEmail->{$email}}, $member);
+  }
+}
+
+DUPEMAIL: {
+  my $dupEmailWorkbook = make_workbook('duplicate_email');
+  my $dupEmailWorksheet = make_worksheet($dupEmailWorkbook, 
+    ['Email', 'FamilyId', 'MemberId', 'Primary', 'Last', 'First', 'Type']);
+  my $row = 1;
+  foreach my $email (keys %{$trxEmail}) {
+    next unless (scalar(@{$trxEmail->{$email}}) > 1);
+    foreach my $member (@{$trxEmail->{$email}}) {
+      write_record($dupEmailWorksheet, $row, [
+        $email,
+        $member->{'FamilyId'},
+        $member->{'MemberId'},
+        $member->{'IsFamilyPrimary'} ? 'primary' : '',
+        $member->{'LastName'},
+        $member->{'FirstName'},
+        $member->{'MembershipType'},
+      ]);
+      $row++;
+    }
+  }
+
+  foreach my $email (keys %{$activeEmail}) {
+    next unless (scalar(@{$activeEmail->{$email}}) > 1);
+    # Resolve duplicates here
+    # find oldest of $activeEmail->{$email}
+    my $oldestMember = oldestMember($activeEmail->{$email});
+
+    # clear email from all others
+    foreach my $member (@{$activeEmail->{$email}}) {
+      next if ($member->{'MemberId'} eq $oldestMember->{'MemberId'});
+      $member->{'Email'} = '';
+      $member->{'EmailLocationCode'} = '';
+    }
+  }
+}
+
 my $currentDate = UnixDate(ParseDate('today'), '%Y-%m-%d');
 
 print "Generating customer files\n";
@@ -313,10 +401,10 @@ $count = 1;
 my $indRow = 1;
 my $lnkRow = 1;
 foreach my $memberId (keys %{$members}) {
-  $progress->update($count);
+  $progress->update($count++);
   my $member = $members->{$memberId};
 
-  # next unless ($member->{'FamilyId'} eq 'F365293034');
+  # next unless ($member->{'FamilyId'} eq 'F161136482');
   # print Dumper($member, $families->{$member->{'FamilyId'}});exit;
 
   next if ($member->{'OverSubscribed'});
@@ -335,11 +423,11 @@ foreach my $memberId (keys %{$members}) {
   $member->{'PrimaryState'} = '';
   $member->{'PrimaryZip'} = '';
   $member->{'PrimaryCountry'} = '';
+  $member->{'PrimaryAddressTypeCode'} = '';
+  $member->{'PrimaryAddressStatusCode'} = '';
+
   $member->{'PrimaryName'} = $primaryMember->{'FormalName'};
   
-  # Move the email address to the primary member unless the primary has one
-  $member->{'Email'} = $primaryMember->{'Email'} unless ($member->{'Email'});
-
   if ($isPrimary) {
     $member->{'PrimaryAddress1'} = $member->{'Address1'};
     $member->{'PrimaryAddress2'} = $member->{'Address2'};
@@ -348,6 +436,8 @@ foreach my $memberId (keys %{$members}) {
     $member->{'PrimaryZip'} = $member->{'Zip'};
     $member->{'PrimaryCountry'} = 'USA';
     $member->{'PrimaryName'} = $member->{'FormalName'};
+    $member->{'PrimaryAddressTypeCode'} = $member->{'AddressTypeCode'};
+    $member->{'PrimaryAddressStatusCode'} = $member->{'AddressStatusCode'};
   }
 
   my $cusIndRecord = make_record($member, \@cusIndAllColumns, $cusIndColumnMap);
@@ -383,19 +473,125 @@ sub clean_customer {
   my $values = shift;
 
   # Trim all name fields
+  foreach my $trimField (qw(Prefix FirstName LastName Suffix CasualName 
+    Address1 Address2 City State Zip)) {
+    $values->{$trimField} =~ s/^\s+//;
+    $values->{$trimField} =~ s/\s+$//;
+  }
+
+  # Remove trailing '.'
+  foreach my $trimField (qw(Prefix Suffix Address1 Address2)) {
+    $values->{$trimField} =~ s/\.$//;
+  }
+
   # Clear all address fields if address1 is empty
-  # Remove trailing - in zip
+  $values->{'AddressTypeCode'} = 'HOME';
+  $values->{'AddressStatusCode'} = 'GOOD';
+  unless ($values->{'Address1'}) {
+    $values->{'Address1'} = 'NOT AVAILABLE';
+    $values->{'Address2'} = '';
+    $values->{'City'} = '';
+    $values->{'State'} = '';
+    $values->{'Zip'} = '';
+    $values->{'Country'} = '';
+    $values->{'AddressTypeCode'} = '';
+    $values->{'AddressStatusCode'} = '';
+  }
+
+  # Remove +4 and trailing - in zip
+  $values->{'Zip'} =~ s/-.*$//;
+
   # Remove non digits in phone
-  # Discard on 10 digit phones
-  # Ensure valid email format
+  # Discard non 10 digit phones
+  foreach my $phoneField (qw(EmergencyPhone CellPhone WorkPhone HomePhone)) {
+    $values->{$phoneField} =~ s/[^\d]//g;
+    $values->{$phoneField} = '' unless ($values->{$phoneField} =~ /\d{10}/);
+  }
   
+  # Split home phone into area code and number
+  $values->{'HomePhoneAreaCode'} = '';
+  $values->{'HomePhoneNumber'} = '';
+  if ($values->{'HomePhone'} =~ /(\d{3})(\d{7})/) {
+    $values->{'HomePhoneAreaCode'} = $1;
+    $values->{'HomePhoneNumber'} = $2;
+  }
+
+  # Ensure valid email format (very basic)
+  $values->{'Email'} = ''
+    unless ($values->{'Email'} =~ /.*\@.*\..*/);
+  
+  # Remove non-member email to reduce duplicates, but keep
+  # it for reporting to Y staff
+  $values->{'TrxEmail'} = $values->{'Email'};
+  $values->{'Email'} = '' unless (isMember($values));
+
+  # Add location code indicators if present
+  $values->{'PhoneLocationCode'} = $values->{'HomePhoneNumber'} ? 'HOME' : '';
+  $values->{'EmailLocationCode'} = $values->{'Email'} ? 'HOME' : '';
+  $values->{'CellLocationCode'} = $values->{'CellPhone'} ? 'HOME' : '';
+  
+  $values->{'Gender'} = getGender($values->{'Gender'});
+
+  $values->{'FormalName'} = join(' ', $values->{'FirstName'}, $values->{'LastName'});
+
+  # We may manipulate non-member membership types for family associations,
+  # but must keep the real membership type for other purposes.
+  $values->{'IsMember'} = isMember($values);
+
+  # dump($values);exit;
   return $values;
+}
+
+sub getGender {
+  my $code = shift;
+
+  return 'MALE' if ($code eq 'M');
+  return 'FEMALE' if ($code eq 'F');
+  return 'OTHER';
+}
+
+sub oldestMember {
+  my $members = shift;
+
+  my $oldestMember = {};
+
+  foreach my $member (@{$members}) {
+    # If the member has no birth day, don't process them
+    unless ($member->{'DateOfBirth'}) {
+      # But if there is no oldest member yet, use this one to start
+      $oldestMember = $member unless ($oldestMember);
+      next;
+    }
+
+    # If the oldest member doesn't have a birth day, use this one
+    unless ($oldestMember->{'DateOfBirth'}) {
+      $oldestMember = $member;
+      next;
+    }
+
+    # Prefer real member over non-members
+    if (!$oldestMember->{'IsMember'} && $member->{'IsMember'}) {
+      $oldestMember = $member;
+      next;
+    }
+
+    # At this point, both current and oldest should have birth days
+    my $memberBirthDate = ParseDate($member->{'DateOfBirth'});
+    my $oldestBirthDate = ParseDate($oldestMember->{'DateOfBirth'});
+
+    # If the current member birth day is less than the oldest, use it
+    if (Date_Cmp($memberBirthDate, $oldestBirthDate) == -1) {
+      $oldestMember = $member;
+    }
+  }
+
+  return $oldestMember
 }
 
 sub isMember {
   my $values = shift;
 
-  return 0 if ($values->{'MembershipType'} eq 'Non-Member');
+  return 0 if (lc $values->{'MembershipType'} eq lc 'Non-Member');
   return 0 if ($values->{'MembershipType'} =~ /program/i);
 
   return 1;
@@ -413,7 +609,6 @@ sub addToFamilies {
   my $values = shift;
   my $families = shift;
   my $conflicts = shift;
-  my $familyOldestMember = shift;
 
   my $familyId = $values->{'FamilyId'};
   my $membershipType = uc $values->{'MembershipType'};
@@ -430,20 +625,6 @@ sub addToFamilies {
   }
 
   my $family = $families->{$familyId}{$membershipType};
-
-  if ($values->{'DateOfBirth'}) {
-    my $memberBirthDate = ParseDate($values->{'DateOfBirth'});
-
-    if (!exists($familyOldestMember->{$familyId})) {
-      $familyOldestMember->{$familyId} = {
-        'birthDate' => $memberBirthDate,
-        'memberId' => $values->{'MemberId'},
-      };
-    } elsif (Date_Cmp($memberBirthDate, $familyOldestMember->{$familyId}{'birthDate'}) == -1) {
-      $familyOldestMember->{$familyId}{'birthDate'} = $memberBirthDate;
-      $familyOldestMember->{$familyId}{'memberId'} = $values->{'MemberId'};
-    }
-  }
 
   push(@{$family->{'members'}}, $values->{'MemberId'});
   
