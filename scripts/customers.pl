@@ -20,6 +20,7 @@ my $cusIndColumnMap = {
   'ORG_ID'                               => { 'type' => 'static', 'source' => 'GMVYMCA' },
   'ORG_UNIT_ID'                          => { 'type' => 'static', 'source' => 'GMVYMCA' },
   'TRX_ID'                               => { 'type' => 'record', 'source' => 'MemberId' },
+  'CUSTOMER_ID'                          => { 'type' => 'record', 'source' => 'PerMemberId' },
   'NAME_PREFIX'                          => { 'type' => 'record', 'source' => 'Prefix' },
   'FIRST_NAME'                           => { 'type' => 'record', 'source' => 'FirstName' },
   'LAST_NAME'                            => { 'type' => 'record', 'source' => 'LastName' },
@@ -98,7 +99,9 @@ my $cusIndWorksheet = make_worksheet($cusIndWorkbook, \@cusIndAllColumns);
 my $cusRelTemplateName = 'DCT_CUS_RELATIONSHIP-20681';
 
 my $cusRelColumnMap = {
+  'RELATED_CUSTOMER_ID'       => { 'type' => 'record', 'source' => 'PerPrimaryId' },
   'RELATED_TRX_ID'            => { 'type' => 'record', 'source' => 'PrimaryId' },
+  'CUSTOMER_ID'               => { 'type' => 'record', 'source' => 'PerMemberId' },
   'TRX_ID'                    => { 'type' => 'record', 'source' => 'MemberId' },
   'RELATED_NAME'              => { 'type' => 'record', 'source' => 'PrimaryName' },
   'RELATIONSHIP_TYPE'         => { 'type' => 'static', 'source' => 'FAMILY' },
@@ -118,11 +121,13 @@ my $cusRelWorksheet = make_worksheet($cusRelWorkbook, \@cusRelAllColumns);
 my $addrLnkTemplateName = 'DCT_ADDRESS_LINKING-43751';
 
 my $addrLnkColumnMap = {
+  'MASTER_CUSTOMER_ID'                   => { 'type' => 'record', 'source' => 'PerMemberId' },
   'MASTER_TRX_ID'                        => { 'type' => 'record', 'source' => 'MemberId' },
   'LABEL_NAME'                           => { 'type' => 'record', 'source' => 'PrimaryName' },
   'ADDRESS_TYPE_CODE'                    => { 'type' => 'static', 'source' => 'HOME' },
   'ADDRESS_STATUS_CODE'                  => { 'type' => 'static', 'source' => 'GOOD' },
   'ADDRESS_STATUS_CHANGE_DATE'           => { 'type' => 'record', 'source' => 'CurrentDate' },
+  'LINK_FROM_CUSTOMER_ID'                => { 'type' => 'record', 'source' => 'PerMemberId' },
   'LINK_FROM_TRX_ID'                     => { 'type' => 'record', 'source' => 'MemberId' },
   'LINK_FROM_ADDRESS_TYPE'               => { 'type' => 'static', 'source' => 'HOME' },
   'PRIMARY_FLAG'                         => { 'type' => 'static', 'source' => 'Y' },
@@ -160,8 +165,8 @@ while(my $rowIn = $csv->getline($membersFile)) {
   $progress->update($count++);
 
   my $values = clean_customer(map_values($headers, $rowIn));
-  # next unless ($values->{'FamilyId'} eq 'F378093670');
-  # next unless (lc $values->{'TrxEmail'} eq 'lljennings99@gmail.com');
+  # next unless ($values->{'FamilyId'} eq 'F152136702');
+  # next unless ($values->{'TrxEmail'} eq 'lljennings99@gmail.com');
   # dump($values); exit;
 
   $members->{$values->{'MemberId'}} = $values;
@@ -250,25 +255,29 @@ foreach my $familyId (keys %{$families}) {
     $members->{$family->{'primaryId'}}{'IsFamilyPrimary'} = 1;
 
     # Assign email to the primary if they don't have one,
-    # but another family member does.
+    # but another family member does. In the case of changing
+    # family email that goes into Personify, we will also
+    # change the TRX email data and not worry about fixing it.
     unless ($members->{$family->{'primaryId'}}{'Email'}) {
       foreach my $familyMemberId (sort @{$family->{'members'}}) {
         $members->{$family->{'primaryId'}}{'Email'}
           = $members->{$familyMemberId}{'Email'};
+        $members->{$family->{'primaryId'}}{'TrxEmail'}
+          = $members->{$familyMemberId}{'TrxEmail'};
         last if ($members->{$family->{'primaryId'}}{'Email'});
       }
     }
 
-    # Remove the email from any other family members
+    # Remove the email from any other family members. This will
+    # stomp any any family member's own email, but there is no
+    # way to be completely accurate. The choice is to prefer
+    # the primary.
     if ($members->{$family->{'primaryId'}}{'Email'}) {
-      my $primaryEmail = lc $members->{$family->{'primaryId'}}{'Email'};
-
       foreach my $familyMemberId (@{$family->{'members'}}) {
         next if ($familyMemberId eq $family->{'primaryId'});
         $members->{$familyMemberId}{'Email'} = '';
+        $members->{$familyMemberId}{'TrxEmail'} = '';
         $members->{$familyMemberId}{'EmailLocationCode'} = '';
-        # $members->{$familyMemberId}{'Email'} = ''
-        #   if (lc $members->{$familyMemberId}{'Email'} eq $primaryEmail);
       }
     }
   }
@@ -344,14 +353,20 @@ foreach my $memberId (keys %{$members}) {
   $progress->update($count++);
   my $member = $members->{$memberId};
   
+  # Clear out any remaining non-member email address
+  unless (isMember($member)) {
+    $member->{'TrxEmail'} = '';
+    $member->{'Email'} = '';
+  }
+  
   if ($member->{'TrxEmail'}) {
-    my $email = lc $member->{'TrxEmail'};
+    my $email = $member->{'TrxEmail'};
     $trxEmail->{$email} = [] unless (exists($trxEmail->{$email}));
     push(@{$trxEmail->{$email}}, $member);
   }
 
   if ($member->{'Email'}) {
-    my $email = lc $member->{'Email'};
+    my $email = $member->{'Email'};
     $activeEmail->{$email} = [] unless (exists($activeEmail->{$email}));
     push(@{$activeEmail->{$email}}, $member);
   }
@@ -392,12 +407,14 @@ DUPEMAIL: {
     }
   }
 }
+exit;
 
 my $currentDate = UnixDate(ParseDate('today'), '%Y-%m-%d');
 
 print "Generating customer files\n";
 $progress = Term::ProgressBar->new({ 'count' => scalar(keys %{$members}) });
 $count = 1;
+my $emailCheck = {};
 my $indRow = 1;
 my $lnkRow = 1;
 foreach my $memberId (keys %{$members}) {
@@ -409,6 +426,12 @@ foreach my $memberId (keys %{$members}) {
 
   next if ($member->{'OverSubscribed'});
   
+  if ($member->{'Email'}) {
+    $emailCheck->{$member->{'Email'}}++;
+    print "$member->{'Email'} still duplicated\n"
+      if ($emailCheck->{$member->{'Email'}} > 1);
+  }
+
   my $family = $families->{$member->{'FamilyId'}}{uc $member->{'MembershipType'}};
   my $primaryMember = $members->{$family->{'primaryId'}};
   my $isPrimary = $member->{'MemberId'} eq $family->{'primaryId'};
@@ -416,7 +439,8 @@ foreach my $memberId (keys %{$members}) {
   $member->{'CurrentDate'} = $currentDate;
 
   # These Primary fields are only to filled in with primary member values
-  $member->{'PrimaryId'} = $family->{'primaryId'};
+  $member->{'PrimaryId'} = $primaryMember->{'MemberId'};
+  $member->{'PerPrimaryId'} = $primaryMember->{'PerMemberId'};
   $member->{'PrimaryAddress1'} = 'NOT AVAILABLE';
   $member->{'PrimaryAddress2'} = '';
   $member->{'PrimaryCity'} = '';
@@ -519,11 +543,12 @@ sub clean_customer {
   # Ensure valid email format (very basic)
   $values->{'Email'} = ''
     unless ($values->{'Email'} =~ /.*\@.*\..*/);
+  $values->{'Email'} =~ tr/[A-Z]/[a-z]/;
   
   # Remove non-member email to reduce duplicates, but keep
   # it for reporting to Y staff
   $values->{'TrxEmail'} = $values->{'Email'};
-  $values->{'Email'} = '' unless (isMember($values));
+  # $values->{'Email'} = '' unless (isMember($values));
 
   # Add location code indicators if present
   $values->{'PhoneLocationCode'} = $values->{'HomePhoneNumber'} ? 'HOME' : '';
@@ -537,6 +562,9 @@ sub clean_customer {
   # We may manipulate non-member membership types for family associations,
   # but must keep the real membership type for other purposes.
   $values->{'IsMember'} = isMember($values);
+
+  # Convert TRX IDs to Personify IDs
+  $values->{'PerMemberId'} = convert_id($values->{'MemberId'});
 
   # dump($values);exit;
   return $values;

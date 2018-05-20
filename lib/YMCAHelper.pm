@@ -136,10 +136,10 @@ sub make_record {
 sub convert_id {
   my $id = shift;
 
-  $id = s/^P/4/;
+  $id =~ s/^P/4/;
   #$id = s/^P/4/;
 
-  return $id;
+  return sprintf('%012d', $id);
 }
 
 sub compare {
