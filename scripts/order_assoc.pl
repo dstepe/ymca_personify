@@ -18,7 +18,7 @@ my $templateName = 'DCT_ORDER_MBR_ASSOCIATE-41924';
 my $columnMap = {
   'ORDER_NO'                           => { 'type' => 'record', 'source' => 'OrderNo' },
   'ORDER_LINE_NO'                      => { 'type' => 'static', 'source' => '1' },
-  'ASSOCIATE_CUSTOMER_ID'              => { 'type' => 'record', 'source' => 'MemberId' },
+  'ASSOCIATE_CUSTOMER_ID'              => { 'type' => 'record', 'source' => 'PerMemberId' },
   'ASSOCIATE_CLASS_CODE'               => { 'type' => 'static', 'source' => 'FAMILY' },
 };
 

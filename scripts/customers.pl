@@ -38,6 +38,7 @@ my $cusIndColumnMap = {
   'COUNTRY_CODE'                         => { 'type' => 'record', 'source' => 'PrimaryCountry' },
   'ADDRESS_TYPE_CODE'                    => { 'type' => 'record', 'source' => 'PrimaryAddressTypeCode' },
   'ADDRESS_STATUS_CODE'                  => { 'type' => 'record', 'source' => 'PrimaryAddressStatusCode' },
+  'COMPANY_NAME'                         => { 'type' => 'record', 'source' => 'Corporation' },
   'PHONE_AREA_CODE'                      => { 'type' => 'record', 'source' => 'HomePhoneAreaCode' },
   'PRIMARY_PHONE'                        => { 'type' => 'record', 'source' => 'HomePhoneNumber' },
   'PRIMARY_PHONE_LOCATION_CODE'          => { 'type' => 'record', 'source' => 'PhoneLocationCode' },
@@ -125,8 +126,8 @@ my $addrLnkColumnMap = {
   'ADDRESS_TYPE_CODE'                    => { 'type' => 'static', 'source' => 'HOME' },
   'ADDRESS_STATUS_CODE'                  => { 'type' => 'static', 'source' => 'GOOD' },
   'ADDRESS_STATUS_CHANGE_DATE'           => { 'type' => 'record', 'source' => 'CurrentDate' },
-  'LINK_FROM_CUSTOMER_ID'                => { 'type' => 'record', 'source' => 'PerMemberId' },
-  'LINK_FROM_TRX_ID'                     => { 'type' => 'record', 'source' => 'MemberId' },
+  'LINK_FROM_CUSTOMER_ID'                => { 'type' => 'record', 'source' => 'PerPrimaryId' },
+  'LINK_FROM_TRX_ID'                     => { 'type' => 'record', 'source' => 'PrimaryId' },
   'LINK_FROM_ADDRESS_TYPE'               => { 'type' => 'static', 'source' => 'HOME' },
   'PRIMARY_FLAG'                         => { 'type' => 'static', 'source' => 'Y' },
   'ONE_TIME_USE_FLAG'                    => { 'type' => 'static', 'source' => 'N' },
@@ -355,6 +356,7 @@ foreach my $memberId (keys %{$members}) {
   unless (is_member($member)) {
     $member->{'TrxEmail'} = '';
     $member->{'Email'} = '';
+    $member->{'EmailLocationCode'} = '';
   }
 
   if ($member->{'TrxEmail'}) {
@@ -455,7 +457,7 @@ foreach my $memberId (keys %{$members}) {
     $member->{'PrimaryCity'} = $member->{'City'};
     $member->{'PrimaryState'} = $member->{'State'};
     $member->{'PrimaryZip'} = $member->{'Zip'};
-    $member->{'PrimaryCountry'} = 'USA';
+    $member->{'PrimaryCountry'} = $member->{'Country'};
     $member->{'PrimaryName'} = $member->{'FormalName'};
     $member->{'PrimaryAddressTypeCode'} = $member->{'AddressTypeCode'};
     $member->{'PrimaryAddressStatusCode'} = $member->{'AddressStatusCode'};

@@ -90,7 +90,10 @@ sub write_record {
   my $record = shift;
 
   for(my $i = 0; $i < scalar(@{$record}); $i++) {
-    if ($record->[$i] =~ /^0.+/) {
+    if (!defined($record->[$i])) {
+      print Dumper($record);exit;
+    }
+    if ($record->[$i] =~ /^0\d/) {
       $worksheet->write_string($row, $i, $record->[$i]);
     } else {
       $worksheet->write($row, $i, $record->[$i]);
@@ -139,6 +142,11 @@ sub make_record {
     }
 
     if ($columnMap->{$field}{'type'} eq 'record') {
+      if (!exists($values->{$columnMap->{$field}{'source'}})) {
+        print "values don't contain $columnMap->{$field}{'source'} for $field\n";
+        print Dumper($values->{$columnMap->{$field}{'source'}});
+        exit;
+      }
       push(@record, $values->{$columnMap->{$field}{'source'}});
       next;
     }
@@ -218,6 +226,7 @@ sub clean_customer {
   # Clear all address fields if address1 is empty
   $values->{'AddressTypeCode'} = 'HOME';
   $values->{'AddressStatusCode'} = 'GOOD';
+  $values->{'Country'} = 'USA';
   unless ($values->{'Address1'}) {
     $values->{'Address1'} = 'NOT AVAILABLE';
     $values->{'Address2'} = '';
