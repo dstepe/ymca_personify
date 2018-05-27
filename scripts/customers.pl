@@ -346,12 +346,19 @@ OVERSUBSCRIBED: {
 print "Checking for duplicate email\n";
 my $trxEmail = {};
 my $activeEmail = {};
+my $memberIds = {};
 $progress = Term::ProgressBar->new({ 'count' => scalar(keys %{$members}) });
 $count = 1;
 foreach my $memberId (keys %{$members}) {
   $progress->update($count++);
+
   my $member = $members->{$memberId};
   
+  $memberIds->{$member->{'PerMemberId'}}++;
+  if ($memberIds->{$member->{'PerMemberId'}} > 1) {
+    print "Personify MemberId $member->{'PerMemberId'} ($memberId) created duplicate\n";
+  }
+
   # Clear out any remaining non-member email address
   unless (is_member($member)) {
     $member->{'TrxEmail'} = '';
