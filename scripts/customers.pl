@@ -431,6 +431,8 @@ foreach my $memberId (keys %{$members}) {
   # print Dumper($member, $families->{$member->{'FamilyId'}});exit;
 
   next if ($member->{'OverSubscribed'});
+
+  my $isMember = is_member($member);
   
   if ($member->{'Email'}) {
     $emailCheck->{$member->{'Email'}}++;
@@ -440,7 +442,7 @@ foreach my $memberId (keys %{$members}) {
 
   my $family = $families->{$member->{'FamilyId'}}{uc $member->{'MembershipType'}};
   my $primaryMember = $members->{$family->{'PrimaryId'}};
-  my $isPrimary = $member->{'MemberId'} eq $family->{'PrimaryId'};
+  my $isPrimary = $isMember && $member->{'MemberId'} eq $family->{'PrimaryId'};
 
   $member->{'CurrentDate'} = $currentDate;
 
@@ -474,7 +476,7 @@ foreach my $memberId (keys %{$members}) {
 
   write_record($cusIndWorksheet, $indRow++, $cusIndRecord);
 
-  unless ($isPrimary) {
+  if ($isMember && !$isPrimary) {
     my $cusRelRecord = make_record($member, \@cusRelAllColumns, $cusRelColumnMap);
     write_record($cusRelWorksheet, $lnkRow, $cusRelRecord);
 

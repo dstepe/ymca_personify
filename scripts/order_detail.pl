@@ -75,15 +75,7 @@ my $taxRates = {
   'Other' => .065,
 };
 
-my $branchProgramCodes = {
-  'BTW Community Center' => 'BT',
-  'Middletown' => 'MD',
-  'Atrium' => 'AT',
-  'Fairfield Family' => 'FF',
-  'Fitton Family' => 'FT',
-  'East Butler' => 'EB',
-  'Hamilton Central' => 'HC'
-};
+my $branchProgramCodes = branch_name_map();
 
 my $cycleDurations = {
   'Annual' => '1 year',
@@ -204,9 +196,9 @@ while(my $rowIn = $csv->getline($ordersFile)) {
     $values->{'DiscountAmount'} = $discount;
   }
 
-  $values->{'TotalAmount'} = $billAmount - $values->{'DiscountAmount'};
-
   $values->{'TaxPaidAmount'} = sprintf("%.2f", $values->{'TotalAmount'} * $taxRate);
+
+  $values->{'TotalAmount'} = $billAmount - $values->{'DiscountAmount'} + $values->{'TaxPaidAmount'};
 
   write_record(
     $worksheet,

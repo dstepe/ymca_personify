@@ -21,12 +21,14 @@ our @EXPORT_OK = qw(
   convert_id
   compare
   dump
+  dd
   open_data_file
   clean_customer
   get_gender
   is_member
   billable_member
   order_master_fields
+  branch_name_map
 );
 
 # these are exported by default.
@@ -41,11 +43,13 @@ our @EXPORT = qw(
   convert_id
   compare
   dump
+  dd
   open_data_file
   clean_customer
   is_member
   billable_member
   order_master_fields
+  branch_name_map
 );
 
 sub get_template_columns {
@@ -91,7 +95,7 @@ sub write_record {
 
   for(my $i = 0; $i < scalar(@{$record}); $i++) {
     if (!defined($record->[$i])) {
-      print Dumper($record);exit;
+      print "$i not defined\n";
     }
     if ($record->[$i] =~ /^0\d/) {
       $worksheet->write_string($row, $i, $record->[$i]);
@@ -134,6 +138,7 @@ sub make_record {
   my $allColumns = shift;
   my $columnMap = shift;
 
+  # print "$allColumns->[3]\n";exit;
   my @record;
   foreach my $field (@{$allColumns}) {
     unless (exists($columnMap->{$field})) {
@@ -192,8 +197,17 @@ sub dump {
   print $table;  
 }
 
+sub dd {
+  my $obj = shift;
+
+  &dump($obj);
+  exit;
+
+}
+
 sub open_data_file {
   my $file = shift;
+  my $headerMap = shift || {};
 
   my $csv = Text::CSV_XS->new ({ auto_diag => 1 });
   
@@ -204,6 +218,10 @@ sub open_data_file {
     or die "Couldn't open $file: $!";
   
   my $headers = $csv->getline($fileHndl);
+  for (my $i = 0; $i < scalar(@{$headers}); $i++) {
+    $headers->[$i] = $headerMap->{$headers->[$i]} 
+      if (exists($headerMap->{$headers->[$i]}));
+  }
 
   return $fileHndl, $headers, $totalRows;
 }
@@ -309,6 +327,19 @@ sub billable_member {
   return 0 unless is_member($values);
 
   return $values->{'BillableMemberId'} eq $values->{'MemberId'};
+}
+
+sub branch_name_map {
+  return {
+    'BTW Community Center' => 'BT',
+    'Middletown' => 'MD',
+    'Atrium' => 'AT',
+    'Fairfield Family' => 'FF',
+    'Fitton Family' => 'FT',
+    'East Butler' => 'EB',
+    'Hamilton Central' => 'HC',
+    'Metropolitan' => 'HC',
+  };
 }
 
 sub order_master_fields {

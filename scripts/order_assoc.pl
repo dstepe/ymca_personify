@@ -67,7 +67,7 @@ while(my $rowIn = $csv->getline($membersFile)) {
   my $familyId = $values->{'FamilyId'};
 
   next unless (exists($familyOrders->{$familyId}));
-  next if ($values->{'MemberId'} eq $familyOrders->{$familyId}{'BillingId'});
+  next if ($values->{'PerMemberId'} eq $familyOrders->{$familyId}{'BillingId'});
   
   $values->{'OrderNo'} = $familyOrders->{$familyId}{'OrderNo'};
 
