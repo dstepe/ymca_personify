@@ -95,8 +95,8 @@ while(my $rowIn = $csv->getline($rateFile)) {
     'NewType' => $values->{'New Type'},
   };
 
-  ($prdRates->{$type}{'Monthly E-Pay'} = $values->{'Monthly Amt'}) =~ s/[^0-9\.]//g;
-  ($prdRates->{$type}{'Annual'} = $values->{'Annual Amt'}) =~ s/[^0-9\.]//g;
+  ($prdRates->{$type}{'Monthly'} = $values->{'Monthly Amt'}) =~ s/\$//g;
+  ($prdRates->{$type}{'Annual'} = $values->{'Annual Amt'}) =~ s/\$//g;
 }
 close($rateFile);
 
@@ -162,7 +162,7 @@ while(my $rowIn = $csv->getline($ordersFile)) {
   if ($membershipTypeKey =~ /PRD/) {
     ($prd = $membershipTypeKey) =~ s/\-.*//;
     die "Missing PRD mapping for $prd" unless (exists($prdRates->{$prd}));
-    $billAmount = $prdRates->{$prd}{$values->{'PaymentMethod'}}
+    $billAmount = $prdRates->{$prd}{'Monthly'};
   }
 
   my $discount = '';
@@ -180,9 +180,14 @@ while(my $rowIn = $csv->getline($ordersFile)) {
     }
 
     $discount = $map->{'DiscountAmount'};
-  } else {
-    $missingMembershipMap->{$membershipTypeKey}++;
   }
+  
+  if ($membershipTypeKey =~ /SPONSOR/i) {
+    $values->{'DiscountCode'} = 'SPONSOR' . $values->{'SponsorDiscount'};
+    $discount = $values->{'SponsorDiscount'} . '%';
+  }
+
+  $missingMembershipMap->{$membershipTypeKey}++ unless ($values->{'RateCode'});
 
   $values->{'DiscountAmount'} = 0;
   if ($discount =~ /\%/) {
@@ -196,9 +201,11 @@ while(my $rowIn = $csv->getline($ordersFile)) {
     $values->{'DiscountAmount'} = $discount;
   }
 
-  $values->{'TaxPaidAmount'} = sprintf("%.2f", $values->{'TotalAmount'} * $taxRate);
+  my $finalFee = $billAmount - $values->{'DiscountAmount'};
 
-  $values->{'TotalAmount'} = $billAmount - $values->{'DiscountAmount'} + $values->{'TaxPaidAmount'};
+  $values->{'TaxPaidAmount'} = sprintf("%.2f", $finalFee * $taxRate);
+
+  $values->{'TotalAmount'} = $finalFee + $values->{'TaxPaidAmount'};
 
   write_record(
     $worksheet,

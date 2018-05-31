@@ -137,7 +137,8 @@ while(my $rowIn = $csv->getline($ordersFile)) {
     $values->{'NextBillDate'}, 
     $values->{'JoinDate'},
     $values->{'FamilyId'}, 
-    $values->{'PerMemberId'}
+    $values->{'PerMemberId'},
+    $values->{'SponsorDiscount'},
     ]);
 
 }

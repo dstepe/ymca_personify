@@ -388,6 +388,7 @@ sub order_master_fields {
     JoinDate
     FamilyId
     PerMemberId
+    SponsorDiscount
   );
 
   return @orderMasterFields;
