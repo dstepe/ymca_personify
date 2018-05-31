@@ -539,7 +539,7 @@ sub map_program_descriptions {
     return $mappedDescription;
   }
 
-  if (grep { $_ eq $values->{'ProgramType' } ('2018 Little League', '2018 Summer T-Ball')) {
+  if (grep { $_ eq $values->{'ProgramType'} } ('2018 Little League', '2018 Summer T-Ball')) {
     return 'Youth Baseball';
   }
 
@@ -594,6 +594,7 @@ sub map_program_descriptions {
     'Teen Leaders' => 'Teen Leaders Club',
     'Strength Train Together' => 'Strength Train Together',
     'Defend Together' => 'Defend Together',
+    'Pumpkin Dash' => 'Pumpkin Dash',
   );
   
   foreach my $clue (keys %map) {
