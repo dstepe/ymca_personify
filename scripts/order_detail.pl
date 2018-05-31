@@ -155,7 +155,7 @@ while(my $rowIn = $csv->getline($ordersFile)) {
   $values->{'TrxInvoiceId'} = '';
   $values->{'ProductCode'} = '';
   $values->{'RateCode'} = '';
-  $values->{'DiscountAmount'} = '';
+  $values->{'DiscountAmount'} = 0;
   $values->{'DiscountCode'} = '';
 
   my $discount = '';
@@ -205,6 +205,7 @@ while(my $rowIn = $csv->getline($ordersFile)) {
   }
 
   my $finalFee = $baseFee - $values->{'DiscountAmount'};
+  $finalFee = 0 if ($finalFee < 0);
 
   $values->{'TaxPaidAmount'} = sprintf("%.2f", $finalFee * $taxRate);
 
