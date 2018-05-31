@@ -106,7 +106,7 @@ my $mappingFile;
 while(my $rowIn = $csv->getline($mappingFile)) {
   my $values = map_values($headers, $rowIn);
 
-  $membershipMap->{uc $values->{'Description'}} = {
+  $membershipMap->{uc $values->{'Description'}}{uc $values->{'Current PaymentMethod'}} = {
     'Branch' => $values->{'Branch'},
     'PaymentMethod' => $values->{'Current PaymentMethod'},
     'ProductCode' => $values->{'Membership Product Code'},
@@ -139,6 +139,7 @@ while(my $rowIn = $csv->getline($ordersFile)) {
   my $values = map_values($headers, $rowIn);
 
   my $membershipTypeKey = uc $values->{'MembershipType'};
+  my $paymentMethodKey = uc $values->{'PaymentMethod'};
 
   my $taxRate = $taxRates->{'Other'};
 
@@ -155,10 +156,12 @@ while(my $rowIn = $csv->getline($ordersFile)) {
   $values->{'ProductCode'} = '';
   $values->{'RateCode'} = '';
   $values->{'DiscountAmount'} = '';
+  $values->{'DiscountCode'} = '';
 
   my $discount = '';
-  if (exists($membershipMap->{$membershipTypeKey})) {
-    my $map = $membershipMap->{$membershipTypeKey};
+  if (exists($membershipMap->{$membershipTypeKey}) 
+      && exists($membershipMap->{$membershipTypeKey}{$paymentMethodKey})) {
+    my $map = $membershipMap->{$membershipTypeKey}{$paymentMethodKey};
 
     my $branchCode = $branchProgramCodes->{$values->{'MembershipBranch'}};
     
@@ -178,7 +181,7 @@ while(my $rowIn = $csv->getline($ordersFile)) {
     $discount = $values->{'SponsorDiscount'} . '%';
   }
 
-  $missingMembershipMap->{$membershipTypeKey}++ unless ($values->{'RateCode'});
+  $missingMembershipMap->{$membershipTypeKey}{$paymentMethodKey}++ unless ($values->{'RateCode'});
 
   my $baseFee = $values->{'RenewalFee'};
 
