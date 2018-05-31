@@ -122,7 +122,7 @@ my $addrLnkTemplateName = 'DCT_ADDRESS_LINKING-43751';
 my $addrLnkColumnMap = {
   'MASTER_CUSTOMER_ID'                   => { 'type' => 'record', 'source' => 'PerMemberId' },
   'MASTER_TRX_ID'                        => { 'type' => 'record', 'source' => 'MemberId' },
-  'LABEL_NAME'                           => { 'type' => 'record', 'source' => 'PrimaryName' },
+  'LABEL_NAME'                           => { 'type' => 'record', 'source' => 'FormalName' },
   'ADDRESS_TYPE_CODE'                    => { 'type' => 'static', 'source' => 'HOME' },
   'ADDRESS_STATUS_CODE'                  => { 'type' => 'static', 'source' => 'GOOD' },
   'ADDRESS_STATUS_CHANGE_DATE'           => { 'type' => 'record', 'source' => 'CurrentDate' },
