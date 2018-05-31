@@ -58,6 +58,7 @@ my $columnMap = {
   'ACTUAL_DISCOUNT_AMOUNT'             => { 'type' => 'record', 'source' => 'DiscountAmount' },
   'ACTUAL_SHIP_AMOUNT'                 => { 'type' => 'static', 'source' => '0' },
   'ACTUAL_TAX_AMOUNT'                  => { 'type' => 'record', 'source' => 'TaxPaidAmount' },
+  'MARKET_CODE'                        => { 'type' => 'record', 'source' => 'MarketCode' },
   'COMMENTS_ON_INVOICE_FLAG'           => { 'type' => 'static', 'source' => 'N' },
   'AUTO_PAY_METHOD_CODE'               => { 'type' => 'static', 'source' => 'NONE' },
   'ATTENDANCE_FLAG'                    => { 'type' => 'static', 'source' => 'N' },
@@ -167,9 +168,11 @@ while(my $rowIn = $csv->getline($ordersFile)) {
     
     $values->{'ProductCode'} = $map->{'ProductCode'};
     $values->{'RateCode'} = $map->{'RateCode'};
+    $values->{'MarketCode'} = $map->{'MarketCode'};
     $values->{'DiscountCode'} = $map->{'DiscountCode'};
     if (!$map->{'Branch'}) {
       $values->{'ProductCode'} =~ s/\{BRANCH\}/$branchCode/g;
+      $values->{'MarketCode'} =~ s/\{BRANCH\}/$branchCode/g;
       $values->{'DiscountCode'} =~ s/\{BRANCH\}/$branchCode/g;
     }
 
