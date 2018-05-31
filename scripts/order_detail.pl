@@ -156,15 +156,6 @@ while(my $rowIn = $csv->getline($ordersFile)) {
   $values->{'RateCode'} = '';
   $values->{'DiscountAmount'} = '';
 
-  my $billAmount = $values->{'RenewalFee'};
-
-  my $prd = '';
-  if ($membershipTypeKey =~ /PRD/) {
-    ($prd = $membershipTypeKey) =~ s/\-.*//;
-    die "Missing PRD mapping for $prd" unless (exists($prdRates->{$prd}));
-    $billAmount = $prdRates->{$prd}{'Monthly'};
-  }
-
   my $discount = '';
   if (exists($membershipMap->{$membershipTypeKey})) {
     my $map = $membershipMap->{$membershipTypeKey};
@@ -189,19 +180,28 @@ while(my $rowIn = $csv->getline($ordersFile)) {
 
   $missingMembershipMap->{$membershipTypeKey}++ unless ($values->{'RateCode'});
 
+  my $baseFee = $values->{'RenewalFee'};
+
+  if ($membershipTypeKey =~ /PRD/) {
+    (my $prd = $membershipTypeKey) =~ s/\-.*//;
+    die "Missing PRD mapping for $prd {$values->{'RateCode'}" 
+      unless (exists($prdRates->{$prd}{$values->{'RateCode'}}));
+    $baseFee = $prdRates->{$prd}{$values->{'RateCode'}};
+  }
+
   $values->{'DiscountAmount'} = 0;
   if ($discount =~ /\%/) {
     $discount =~ s/\%//;
     $discount /= 100;
 
-    $values->{'DiscountAmount'} = $billAmount * $discount;
+    $values->{'DiscountAmount'} = $baseFee * $discount;
   } elsif ($discount =~ /\$/) {
     $discount =~ s/\$//;
 
     $values->{'DiscountAmount'} = $discount;
   }
 
-  my $finalFee = $billAmount - $values->{'DiscountAmount'};
+  my $finalFee = $baseFee - $values->{'DiscountAmount'};
 
   $values->{'TaxPaidAmount'} = sprintf("%.2f", $finalFee * $taxRate);
 
