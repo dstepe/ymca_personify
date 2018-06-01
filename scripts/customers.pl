@@ -261,6 +261,7 @@ foreach my $familyId (keys %{$families}) {
       foreach my $familyMemberId (sort @{$family->{'Members'}}) {
         $members->{$family->{'PrimaryId'}}{'Email'}
           = $members->{$familyMemberId}{'Email'};
+        $members->{$family->{'PrimaryId'}}{'EmailLocationCode'} = 'HOME';
         $members->{$family->{'PrimaryId'}}{'TrxEmail'}
           = $members->{$familyMemberId}{'TrxEmail'};
         last if ($members->{$family->{'PrimaryId'}}{'Email'});
@@ -470,6 +471,10 @@ foreach my $memberId (keys %{$members}) {
     $member->{'PrimaryName'} = $member->{'FormalName'};
     $member->{'PrimaryAddressTypeCode'} = $member->{'AddressTypeCode'};
     $member->{'PrimaryAddressStatusCode'} = $member->{'AddressStatusCode'};
+  }
+
+  if ($member->{'Email'} && !$member->{'EmailLocationCode'}) {
+    dd($member);
   }
 
   my $cusIndRecord = make_record($member, \@cusIndAllColumns, $cusIndColumnMap);

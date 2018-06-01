@@ -6,6 +6,8 @@ use File::Slurp;
 use Data::Dumper;
 use Excel::Writer::XLSX;
 use Text::Table;
+use Text::CSV_XS;
+use Term::ProgressBar;
 
 our @ISA= qw( Exporter );
 
@@ -19,6 +21,7 @@ our @EXPORT_OK = qw(
   map_values
   make_record
   convert_id
+  lookup_id
   compare
   dump
   dd
@@ -41,6 +44,7 @@ our @EXPORT = qw(
   map_values
   make_record
   convert_id
+  lookup_id
   compare
   dump
   dd
@@ -51,6 +55,29 @@ our @EXPORT = qw(
   order_master_fields
   branch_name_map
 );
+
+my $idMap = {};
+
+if (-e 'data/id_map.txt') {
+  my $csv = Text::CSV_XS->new ({ auto_diag => 1, eol => $/ });
+
+  my($dataFile, $headers, $totalRows) = open_data_file('data/id_map.txt');
+
+  print "Loading ID Map\n";
+  my $progress = Term::ProgressBar->new({ 'count' => $totalRows });
+
+  my $count = 1;
+  while(my $rowIn = $csv->getline($dataFile)) {
+
+    $progress->update($count++);
+
+    my $values = map_values($headers, $rowIn);
+    
+    $idMap->{$values->{'TrxId'}} = $values->{'PersonifyId'};
+  }
+
+  close($dataFile);  
+}
 
 sub get_template_columns {
   my $templateName = shift;
@@ -166,8 +193,17 @@ sub convert_id {
   my $id = shift;
 
   $id =~ s/^P/4/;
+  $id =~ s/^[A-Z]+/44/;
 
   return sprintf('%012d', $id);
+}
+
+sub lookup_id {
+  my $id = shift;
+
+  return $idMap->{$id} if (exists($idMap->{$id}));
+
+  return '';
 }
 
 sub compare {
@@ -218,6 +254,7 @@ sub open_data_file {
     or die "Couldn't open $file: $!";
   
   my $headers = $csv->getline($fileHndl);
+
   for (my $i = 0; $i < scalar(@{$headers}); $i++) {
     $headers->[$i] = $headerMap->{$headers->[$i]} 
       if (exists($headerMap->{$headers->[$i]}));

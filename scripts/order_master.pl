@@ -10,7 +10,7 @@ use File::Slurp;
 use Data::Dumper;
 use Excel::Writer::XLSX;
 use Date::Manip;
-use Text::CSV;
+use Text::CSV_XS;
 use Term::ProgressBar;
 
 my $templateName = 'DCT_ORDER_MASTER-42939';
@@ -86,6 +86,7 @@ open(my $orderMaster, '>', 'data/order_master.txt')
 $csv->print($orderMaster, [order_master_fields()]);
 
 my $types = {};
+my $unmappedMembers = [];
 
 my($ordersFile, $headers, $totalRows) = open_data_file('data/MembershipOrders.csv');
 
@@ -104,7 +105,12 @@ while(my $rowIn = $csv->getline($ordersFile)) {
 
   next if (grep { uc $_ eq uc $values->{'MembershipTypeDes'} } @skipTypes);
 
-  $values->{'PerMemberId'} = convert_id($values->{'MemberId'});
+  $values->{'PerMemberId'} = lookup_id($values->{'MemberId'});
+
+  unless ($values->{'PerMemberId'}) {
+    push(@{$unmappedMembers}, $values);
+    next;
+  }
 
   # OrderDate must be start of current membership cycle
   #  NextBillDate - (method offset)
@@ -151,3 +157,6 @@ close($orderMaster);
 #     print "$type\t$method\t$types->{$type}{$method}\n";
 #   }
 # }
+
+print Dumper($unmappedMembers);
+
