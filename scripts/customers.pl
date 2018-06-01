@@ -261,7 +261,8 @@ foreach my $familyId (keys %{$families}) {
       foreach my $familyMemberId (sort @{$family->{'Members'}}) {
         $members->{$family->{'PrimaryId'}}{'Email'}
           = $members->{$familyMemberId}{'Email'};
-        $members->{$family->{'PrimaryId'}}{'EmailLocationCode'} = 'HOME';
+        $members->{$family->{'PrimaryId'}}{'EmailLocationCode'}
+          = $members->{$familyMemberId}{'EmailLocationCode'};
         $members->{$family->{'PrimaryId'}}{'TrxEmail'}
           = $members->{$familyMemberId}{'TrxEmail'};
         last if ($members->{$family->{'PrimaryId'}}{'Email'});
