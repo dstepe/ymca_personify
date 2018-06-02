@@ -32,8 +32,8 @@ our @EXPORT_OK = qw(
   get_gender
   is_member
   billable_member
-  member_order_master_fields
-  program_order_master_fields
+  member_order_fields
+  program_order_fields
   branch_name_map
 );
 
@@ -56,8 +56,8 @@ our @EXPORT = qw(
   clean_customer
   is_member
   billable_member
-  member_order_master_fields
-  program_order_master_fields
+  member_order_fields
+  program_order_fields
   branch_name_map
 );
 
@@ -419,120 +419,52 @@ sub branch_name_map {
   };
 }
 
-sub member_order_master_fields {
-
-  my @orderMasterFields = qw(
-    OrderNo
+sub common_order_fields {
+  return qw(
     OrderDate
-    OrgId
-    OrgUnitId
+    OrderNo
     PerBillableMemberId
-    BillAddressTypeCode
-    ShipCustomerId
-    OrderMethodCode
-    OrderStatusCode
-    OrderStatusDate
-    OrdstsReasonCode
-    ClOrderMethodCode
-    CouponCode
-    Application
-    AckLetterMethodCode
-    PoNumber
-    ConfirmationNo
-    AckLetterPrintDate
-    ConfirmationDate
-    OrderCompleteFlag
-    AdvContractId
-    AdvAgencyCustId
-    BillSalesTerritory
-    FndGiveEmployerCreditFlag
-    ShipSalesTerritory
-    PosFlag
-    PosCountryCode
-    PosState
-    PosPostalCode
-    AdvRateCardYearCode
-    AdvAgencySubCustId
-    EmployerCustomerId
-    OldOrderNo
-    MembershipType
-    PaymentMethod 
-    RenewalFee
+    PerMemberId
+    StatusDate
+  );
+}
+
+sub member_order_fields {
+
+  my @orderFields = common_order_fields();
+
+  push(@orderFields, qw(
+    MembershipTypeDes
+    PaymentMethod
+    RenewMembershipFee
     BranchCode
     MembershipBranch
     CompanyName
     NextBillDate
     JoinDate
     FamilyId
-    PerMemberId
     SponsorDiscount
-  );
+  ));
 
-  return @orderMasterFields;
+  return @orderFields;
 }
 
-sub program_order_master_fields {
+sub program_order_fields {
 
-  my @orderMasterFields = qw(
-    OrderNo
-    OrderDate
-    OrgId
-    OrgUnitId
-    BillCustomerId
-    BillAddressTypeCode
-    ShipCustomerId
-    OrderMethodCode
-    OrderStatusCode
-    OrderStatusDate
-    OrdstsReasonCode
-    ClOrderMethodCode
-    CouponCode
-    Application
-    AckLetterMethodCode
-    PoNumber
-    ConfirmationNo
-    AckLetterPrintDate
-    ConfirmationDate
-    OrderCompleteFlag
-    AdvContractId
-    AdvAgencyCustId
-    BillSalesTerritory
-    FndGiveEmployerCreditFlag
-    ShipSalesTerritory
-    PosFlag
-    PosCountryCode
-    PosState
-    PosPostalCode
-    AdvRateCardYearCode
-    AdvAgencySubCustId
-    EmployerCustomerId
-    OldOrderNo
+  my @orderFields = common_order_fields();
+
+  push(@orderFields, qw(
     Session
+    ProgramStartDate
     ProgramEndDate
-    LastName
-    ItemDescription
-    MemberId
     ReceiptNumber
     FeePaid
     DatePaid
-    GlAccount
-    ProgramStartDate
-    BillableLastName
-    BillableFirstName
-    Branch
-    BranchName
+    ItemDescription
     Cycle
-    ProgramDescription
-    FirstName
-    BillableMemberId
-    OrderNo
-    OrderDate
-    StatusDate
-    PerMemberId
-    PerBillableMemberId
-  );
+  ));
 
-  return @orderMasterFields;
+  return @orderFields;
 }
 
 1;

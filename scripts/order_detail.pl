@@ -139,7 +139,9 @@ process_data_file(
     $values->{'TaxCategoryCode'} = 'SALES';
     $values->{'AttendanceFlag'} = 'N';
 
-    my $membershipTypeKey = uc $values->{'MembershipType'};
+    $values->{'ShipCustomerId'} = $values->{'PerBillableMemberId'};
+
+    my $membershipTypeKey = uc $values->{'MembershipTypeDes'};
     my $paymentMethodKey = uc $values->{'PaymentMethod'};
 
     my $taxRate = $taxRates->{'Other'};
@@ -186,7 +188,7 @@ process_data_file(
 
     $missingMembershipMap->{$membershipTypeKey}{$paymentMethodKey}++ unless ($values->{'RateCode'});
 
-    my $baseFee = $values->{'RenewalFee'};
+    my $baseFee = $values->{'RenewMembershipFee'};
 
     if ($membershipTypeKey =~ /PRD/) {
       (my $prd = $membershipTypeKey) =~ s/\-.*//;
@@ -241,6 +243,8 @@ process_data_file(
     $values->{'AttendanceFlag'} = 'Y';
     $values->{'JoinDate'} = '';
     
+    $values->{'ShipCustomerId'} = $values->{'PerMemberId'};
+
     $values->{'BeginDate'} = UnixDate($values->{'ProgramStartDate'}, '%Y-%m-%d');
     $values->{'EndDate'} = UnixDate($values->{'ProgramEndDate'}, '%Y-%m-%d');
 
@@ -258,4 +262,4 @@ process_data_file(
       make_record($values, \@allColumns, $columnMap)
     );
   }
-);
+) if (1);

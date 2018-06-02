@@ -81,7 +81,7 @@ my $csv = Text::CSV_XS->new ({ auto_diag => 1, eol => $/ });
 
 open(my $orderMaster, '>', 'data/member_orders.csv')
   or die "Couldn't open data/member_orders.csv: $!";
-$csv->print($orderMaster, [member_order_master_fields()]);
+$csv->print($orderMaster, [member_order_fields()]);
 
 my $types = {};
 my $unmappedMembers = [];
@@ -126,20 +126,8 @@ process_data_file(
 
     $values->{'RenewMembershipFee'} =~ s/[^0-9\.]//g;
 
-    $csv->print($orderMaster, [
-      @{$record}, 
-      $values->{'MembershipTypeDes'},
-      $values->{'PaymentMethod'}, 
-      $values->{'RenewMembershipFee'}, 
-      $values->{'BranchCode'}, 
-      $values->{'MembershipBranch'}, 
-      $values->{'CompanyName'},
-      $values->{'NextBillDate'}, 
-      $values->{'JoinDate'},
-      $values->{'FamilyId'}, 
-      $values->{'PerMemberId'},
-      $values->{'SponsorDiscount'},
-    ]);
+    $record = make_record($values, [member_order_fields()], make_column_map([member_order_fields()]));
+    $csv->print($orderMaster, $record);
   }
 ) if (1);
 
@@ -149,27 +137,21 @@ print Dumper($unmappedMembers) if (@{$unmappedMembers});
 
 open(my $programMaster, '>', 'data/program_orders.csv')
   or die "Couldn't open data/program_orders.csv: $!";
-$csv->print($programMaster, [program_order_master_fields()]);
+$csv->print($programMaster, [program_order_fields()]);
 
 my $orderHeaderMap = {
-  'Session' => 'Session',
-  'Program End Date' => 'ProgramEndDate',
-  'Last Name' => 'LastName',
-  'Item Description' => 'ItemDescription',
-  'Member ID' => 'MemberId',
-  'Receipt Number' => 'ReceiptNumber',
-  'Fee Paid' => 'FeePaid',
-  'Date Paid' => 'DatePaid',
-  'GL Account' => 'GlAccount',
-  'Program Start Date' => 'ProgramStartDate',
-  'Billable Member Last Name' => 'BillableLastName',
-  'Billable Member First Name' => 'BillableFirstName',
-  'Branch' => 'Branch',
+  'billable Member Id' => 'BillableMemberId',
   'Branch Name' => 'BranchName',
   'Cycle' => 'Cycle',
+  'Date Paid' => 'DatePaid',
+  'Fee Paid' => 'FeePaid',
+  'Item Description' => 'ItemDescription',
+  'Member ID' => 'MemberId',
   'Program Description' => 'ProgramDescription',
-  'First Name' => 'FirstName',
-  'billable Member Id' => 'BillableMemberId'  
+  'Program End Date' => 'ProgramEndDate',
+  'Program Start Date' => 'ProgramStartDate',
+  'Receipt Number' => 'ReceiptNumber',
+  'Session' => 'Session',
 };
 
 process_data_file(
@@ -190,33 +172,72 @@ process_data_file(
     my $record = make_record($values, \@allColumns, $columnMap);
     write_record($worksheet, $order++, $record);
 
-    $csv->print($programMaster, [
-      @{$record},
-      $values->{'Session'},
-      $values->{'ProgramEndDate'},
-      $values->{'LastName'},
-      $values->{'ItemDescription'},
-      $values->{'MemberId'},
-      $values->{'ReceiptNumber'},
-      $values->{'FeePaid'},
-      $values->{'DatePaid'},
-      $values->{'GlAccount'},
-      $values->{'ProgramStartDate'},
-      $values->{'BillableLastName'},
-      $values->{'BillableFirstName'},
-      $values->{'Branch'},
-      $values->{'BranchName'},
-      $values->{'Cycle'},
-      $values->{'ProgramDescription'},
-      $values->{'FirstName'},
-      $values->{'BillableMemberId'},
-      $values->{'OrderNo'},
-      $values->{'OrderDate'},
-      $values->{'StatusDate'},
-      $values->{'PerMemberId'},
-      $values->{'PerBillableMemberId'},
-      ]);
+    $record = make_record($values, [program_order_fields()], make_column_map([program_order_fields()]));
+    $csv->print($programMaster, $record);
   },
   undef,
   $orderHeaderMap
-);
+) if (1);
+
+$orderHeaderMap = {
+  'Amount' => 'FeePaid',
+  'Branch Name' => 'BranchName',
+  'Date' => 'Date',
+  'End Date' => 'ProgramEndDate',
+  'Location' => 'Location',
+  'Member Fee' => 'MemberFee',
+  'Member ID' => 'MemberId',
+  'Non- Member Fee' => 'NonMemberFee',
+  'Participant Id' => 'ParticipantId',
+  'Primary Sponsor Id' => 'PrimarySponsorId',
+  'Program Branch' => 'ProgramBranch',
+  'Program Description' => 'ProgramDescription',
+  'Program Location Or Session' => 'ProgramLocation',
+  'Program Member Fee' => 'ProgramMemberFee',
+  'Program Schedule' => 'Schedule',
+  'Program Type' => 'ProgramType',
+  'Program' => 'Program',
+  'Receipt Number' => 'ReceiptNumber',
+  'Season' => 'Season',
+  'Schedule' => 'Schedule',
+  'Start Date' => 'ProgramStartDate',
+};
+
+# process_data_file(
+#   'data/ChildcareOrders.csv',
+#   sub {
+#     my $values = shift;
+
+#     $values->{'OrderNo'} = $orderNo++;
+
+#     $values->{'PerMemberId'} = lookup_id($values->{'ParticipantId'});
+#     $values->{'PerBillableMemberId'} = lookup_id($values->{'PrimarySponsorId'});
+
+#     $values->{'OrderDate'} = UnixDate($values->{'Date'}, '%Y-%m-%d');
+#     $values->{'StatusDate'} = $values->{'OrderDate'};
+
+#     $values->{'FeePaid'} =~ s/\$//;
+
+#     my $record = make_record($values, \@allColumns, make_column_map([program_order_fields()]));
+#     write_record($worksheet, $order++, $record);
+
+#     $csv->print($programMaster, $record);
+#   },
+#   undef,
+#   $orderHeaderMap
+# );
+
+sub make_column_map {
+  my $headers = shift;
+
+  my $map = {};
+
+  foreach my $key (@{$headers}) {
+    $map->{$key} = {
+      'type' => 'record',
+      'source' => $key,
+    }
+  }
+
+  return $map;
+}
