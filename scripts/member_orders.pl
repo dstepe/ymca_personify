@@ -81,8 +81,8 @@ my $worksheet = make_worksheet($workbook, \@allColumns);
 
 my $csv = Text::CSV_XS->new ({ auto_diag => 1, eol => $/ });
 
-open(my $orderMaster, '>', 'data/order_master.csv')
-  or die "Couldn't open data/order_master.csv: $!";
+open(my $orderMaster, '>', 'data/member_orders.csv')
+  or die "Couldn't open data/member_orders.csv: $!";
 $csv->print($orderMaster, [order_master_fields()]);
 
 my $types = {};
