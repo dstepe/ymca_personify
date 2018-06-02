@@ -253,7 +253,7 @@ close($dataFile);
 
 my $programTypeWorkbook = make_workbook('unmatched_program_type');
 my $programTypeWorksheet = make_worksheet($programTypeWorkbook, 
-  ['Source', 'Type', 'Description', 'Session Start Date', 'Schedule']);
+  ['Source', 'Program No', 'Type', 'Description', 'Session Start Date', 'Schedule']);
 
 my $collector = {};
 print "Generating program files\n";
@@ -278,6 +278,7 @@ foreach my $program (@{$products}) {
 
   write_record($programTypeWorksheet, $programTypeRow++, [
     $program->{'Source'},
+    $program->{'ProgramNumber'} || '',
     $program->{'ProgramType'} || '',
     $program->{'ProgramDescription'} || '',
     $program->{'SessionStartDate'} || '',
