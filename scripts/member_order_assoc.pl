@@ -29,7 +29,7 @@ my $worksheet = make_worksheet($workbook, \@allColumns);
 
 my $csv = Text::CSV_XS->new ({ auto_diag => 1 });
 
-my($ordersFile, $headers, $totalRows) = open_data_file('data/order_master.csv');
+my($ordersFile, $headers, $totalRows) = open_data_file('data/member_orders.csv');
 
 my $familyOrders = {};
 my $progress = Term::ProgressBar->new({ 'count' => $totalRows });
