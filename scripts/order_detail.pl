@@ -127,7 +127,7 @@ my $workbook = make_workbook($templateName);
 my $worksheet = make_worksheet($workbook, \@allColumns);
 
 my $ordersFile;
-($ordersFile, $headers, $totalRows) = open_data_file('data/order_master.txt');
+($ordersFile, $headers, $totalRows) = open_data_file('data/order_master.csv');
 
 my $missingMembershipMap = {};
 my $progress = Term::ProgressBar->new({ 'count' => $totalRows });

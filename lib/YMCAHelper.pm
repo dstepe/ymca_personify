@@ -8,6 +8,7 @@ use Excel::Writer::XLSX;
 use Text::Table;
 use Text::CSV_XS;
 use Term::ProgressBar;
+use DBI;
 
 our @ISA= qw( Exporter );
 
@@ -20,12 +21,12 @@ our @EXPORT_OK = qw(
   split_values
   map_values
   make_record
-  convert_id
   lookup_id
   compare
   dump
   dd
   open_data_file
+  process_data_file
   clean_customer
   get_gender
   is_member
@@ -43,12 +44,12 @@ our @EXPORT = qw(
   split_values
   map_values
   make_record
-  convert_id
   lookup_id
   compare
   dump
   dd
   open_data_file
+  process_data_file
   clean_customer
   is_member
   billable_member
@@ -56,28 +57,9 @@ our @EXPORT = qw(
   branch_name_map
 );
 
-my $idMap = {};
-
-if (-e 'data/id_map.txt') {
-  my $csv = Text::CSV_XS->new ({ auto_diag => 1, eol => $/ });
-
-  my($dataFile, $headers, $totalRows) = open_data_file('data/id_map.txt');
-
-  print "Loading ID Map\n";
-  my $progress = Term::ProgressBar->new({ 'count' => $totalRows });
-
-  my $count = 1;
-  while(my $rowIn = $csv->getline($dataFile)) {
-
-    $progress->update($count++);
-
-    my $values = map_values($headers, $rowIn);
-    
-    $idMap->{$values->{'TrxId'}} = $values->{'PersonifyId'};
-  }
-
-  close($dataFile);  
-}
+my $csv = Text::CSV_XS->new ({ auto_diag => 1 });
+  
+my $dbh = DBI->connect('dbi:SQLite:dbname=db/ymca.db','','');
 
 sub get_template_columns {
   my $templateName = shift;
@@ -189,21 +171,18 @@ sub make_record {
   return \@record;
 }
 
-sub convert_id {
-  my $id = shift;
-
-  $id =~ s/^P/4/;
-  $id =~ s/^[A-Z]+/44/;
-
-  return sprintf('%012d', $id);
-}
-
 sub lookup_id {
-  my $id = shift;
+  my $tId = shift;
 
-  return $idMap->{$id} if (exists($idMap->{$id}));
+  my($pId) = $dbh->selectrow_array(q{
+    select p_id
+      from ids
+      where t_id = ?
+    }, undef, $tId);
 
-  return '';
+  die "Couldn't map $tId" unless ($pId);
+
+  return $pId;
 }
 
 sub compare {
@@ -245,8 +224,6 @@ sub open_data_file {
   my $file = shift;
   my $headerMap = shift || {};
 
-  my $csv = Text::CSV_XS->new ({ auto_diag => 1 });
-  
   # Subtract one for the heading row
   my $totalRows = `cat $file | wc -l` - 1;
 
@@ -261,6 +238,29 @@ sub open_data_file {
   }
 
   return $fileHndl, $headers, $totalRows;
+}
+
+sub process_data_file {
+  my $file = shift;
+  my $func = shift;
+  my $heading =shift || $file;
+
+  my($dataFile, $headers, $totalRows) = open_data_file($file);
+
+  print "Processing $heading\n";
+  my $progress = Term::ProgressBar->new({ 'count' => $totalRows });
+
+  my $count = 1;
+  while(my $rowIn = $csv->getline($dataFile)) {
+
+    $progress->update($count++);
+
+    my $values = map_values($headers, $rowIn);
+    
+    $func->($values); 
+  }
+
+  close($dataFile);
 }
 
 sub clean_customer {
@@ -335,7 +335,7 @@ sub clean_customer {
   $values->{'IsMember'} = is_member($values);
 
   # Convert TRX IDs to Personify IDs
-  $values->{'PerMemberId'} = convert_id($values->{'MemberId'});
+  $values->{'PerMemberId'} = lookup_id($values->{'MemberId'});
 
   # dump($values);exit;
   return $values;

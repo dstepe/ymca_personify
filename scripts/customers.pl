@@ -149,49 +149,43 @@ my $addrLnkWorksheet = make_worksheet($addrLnkWorkbook, \@addrLnkAllColumns);
 
 my $csv = Text::CSV_XS->new ({ auto_diag => 1 });
 
-my($membersFile, $headers, $totalRows) = open_data_file('data/AllMembers.csv');
-
-print "Processing customers\n";
-my $progress = Term::ProgressBar->new({ 'count' => $totalRows });
-
 my $members = {};
 my $families = {};
 my $conflicts = [];
 my $noFamily = [];
-my $count = 1;
-while(my $rowIn = $csv->getline($membersFile)) {
+process_data_file(
+  'data/AllMembers.csv',
+  sub {
+    my $values = clean_customer(shift);
+    
+    # next unless ($values->{'FamilyId'} eq 'F152136702');
+    # next unless ($values->{'TrxEmail'} eq 'lljennings99@gmail.com');
+    # dump($values); exit;
 
-  $progress->update($count++);
+    $members->{$values->{'MemberId'}} = $values;
 
-  my $values = clean_customer(map_values($headers, $rowIn));
-  # next unless ($values->{'FamilyId'} eq 'F152136702');
-  # next unless ($values->{'TrxEmail'} eq 'lljennings99@gmail.com');
-  # dump($values); exit;
+    return unless (is_member($values));
+    
+    # Camp members who do not need to be loaded
+    unless ($values->{'FamilyId'}) {
+      push(@{$noFamily}, {
+        'MemberId' => $values->{'MemberId'},
+      });
+      return;
+    }
 
-  $members->{$values->{'MemberId'}} = $values;
+    # We will determine if the member is the primary later.
+    $values->{'IsFamilyPrimary'} = 0;
 
-  next unless (is_member($values));
-  
-  # Camp members who do not need to be loaded
-  unless ($values->{'FamilyId'}) {
-    push(@{$noFamily}, {
-      'MemberId' => $values->{'MemberId'},
-    });
-    next;
-  }
-
-  # We will determine if the member is the primary later.
-  $values->{'IsFamilyPrimary'} = 0;
-
-  addToFamilies($values, $families, $conflicts);
-}
-
-close($membersFile);
+    addToFamilies($values, $families, $conflicts);
+  },
+  'customers'
+);
 
 # Put non-members into families
 print "Processing non-members\n";
-$progress = Term::ProgressBar->new({ 'count' => scalar(keys %{$members}) });
-$count = 1;
+my $progress = Term::ProgressBar->new({ 'count' => scalar(keys %{$members}) });
+my $count = 1;
 my $overSubscribedFamilies = {};
 foreach my $memberId (keys %{$members}) {
   $progress->update($count++);
@@ -492,8 +486,6 @@ foreach my $memberId (keys %{$members}) {
     $lnkRow++;
   }
 }
-
-close($membersFile);
 
 sub oldestMember {
   my $members = shift;
