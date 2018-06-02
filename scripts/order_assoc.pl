@@ -49,32 +49,22 @@ while(my $rowIn = $csv->getline($ordersFile)) {
 }
 close($ordersFile);
 
-my $membersFile;
-($membersFile, $headers, $totalRows) = open_data_file('data/AllMembers.csv');
-
-print "Processing customers\n";
-$progress = Term::ProgressBar->new({ 'count' => $totalRows });
-
-$count = 1;
 $row = 1;
-while(my $rowIn = $csv->getline($membersFile)) {
+process_customer_file(
+  sub {
+    my $values = shift;
 
-  $progress->update($count++);
+    my $familyId = $values->{'FamilyId'};
 
-  my $values = clean_customer(map_values($headers, $rowIn));
-  # dump($values); exit;
+    return unless (exists($familyOrders->{$familyId}));
+    return if ($values->{'PerMemberId'} eq $familyOrders->{$familyId}{'BillingId'});
+    
+    $values->{'OrderNo'} = $familyOrders->{$familyId}{'OrderNo'};
 
-  my $familyId = $values->{'FamilyId'};
-
-  next unless (exists($familyOrders->{$familyId}));
-  next if ($values->{'PerMemberId'} eq $familyOrders->{$familyId}{'BillingId'});
-  
-  $values->{'OrderNo'} = $familyOrders->{$familyId}{'OrderNo'};
-
-  write_record(
-    $worksheet,
-    $row++,
-    make_record($values, \@allColumns, $columnMap)
-  );
-}
-close($membersFile);
+    write_record(
+      $worksheet,
+      $row++,
+      make_record($values, \@allColumns, $columnMap)
+    );
+  }
+);

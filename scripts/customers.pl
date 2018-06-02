@@ -153,15 +153,14 @@ my $members = {};
 my $families = {};
 my $conflicts = [];
 my $noFamily = [];
-process_data_file(
-  'data/AllMembers.csv',
+process_customer_file(
   sub {
-    my $values = clean_customer(shift);
+    my $values = shift;
     
-    # next unless ($values->{'FamilyId'} eq 'F152136702');
-    # next unless ($values->{'TrxEmail'} eq 'lljennings99@gmail.com');
+    # return unless ($values->{'FamilyId'} eq 'F152136702');
+    # return unless ($values->{'TrxEmail'} eq 'lljennings99@gmail.com');
     # dump($values); exit;
-
+    
     $members->{$values->{'MemberId'}} = $values;
 
     return unless (is_member($values));
@@ -178,8 +177,7 @@ process_data_file(
     $values->{'IsFamilyPrimary'} = 0;
 
     addToFamilies($values, $families, $conflicts);
-  },
-  'customers'
+  }
 );
 
 # Put non-members into families

@@ -27,6 +27,7 @@ our @EXPORT_OK = qw(
   dd
   open_data_file
   process_data_file
+  process_customer_file
   clean_customer
   get_gender
   is_member
@@ -50,6 +51,7 @@ our @EXPORT = qw(
   dd
   open_data_file
   process_data_file
+  process_customer_file
   clean_customer
   is_member
   billable_member
@@ -60,6 +62,17 @@ our @EXPORT = qw(
 my $csv = Text::CSV_XS->new ({ auto_diag => 1 });
   
 my $dbh = DBI->connect('dbi:SQLite:dbname=db/ymca.db','','');
+
+my @customerCompanies;
+process_data_file(
+  'data/CustomerCompanies.csv',
+  sub {
+    my $values = shift;
+    push(@customerCompanies, $values->{'TRX_ID'});
+  }
+);
+
+#print Dumper(\@customerCompanies);exit;
 
 sub get_template_columns {
   my $templateName = shift;
@@ -247,13 +260,18 @@ sub process_data_file {
 
   my($dataFile, $headers, $totalRows) = open_data_file($file);
 
-  print "Processing $heading\n";
-  my $progress = Term::ProgressBar->new({ 'count' => $totalRows });
+  my $showProgress = $totalRows > 100;
+
+  my $progress;
+  if ($showProgress) {
+    print "Processing $heading\n";
+    $progress = Term::ProgressBar->new({ 'count' => $totalRows });
+  }
 
   my $count = 1;
   while(my $rowIn = $csv->getline($dataFile)) {
 
-    $progress->update($count++);
+    $progress->update($count++) if ($showProgress);
 
     my $values = map_values($headers, $rowIn);
     
@@ -261,6 +279,23 @@ sub process_data_file {
   }
 
   close($dataFile);
+}
+
+sub process_customer_file {
+  my $func = shift;
+
+  process_data_file(
+    'data/AllMembers.csv',
+    sub {
+      my $values = clean_customer(shift);
+      
+      # Skip companies in as customers
+      return if (grep { $values->{'MemberId'} eq $_ } @customerCompanies);
+
+      $func->($values);
+    },
+    'customers'
+  );
 }
 
 sub clean_customer {
