@@ -126,102 +126,94 @@ my @allColumns = get_template_columns($templateName);
 my $workbook = make_workbook($templateName);
 my $worksheet = make_worksheet($workbook, \@allColumns);
 
-my $ordersFile;
-($ordersFile, $headers, $totalRows) = open_data_file('data/member_orders.csv');
-
 my $missingMembershipMap = {};
-my $progress = Term::ProgressBar->new({ 'count' => $totalRows });
 my $row = 1;
-my $count = 1;
-while(my $rowIn = $csv->getline($ordersFile)) {
+process_data_file(
+  'data/member_orders.csv',
+  sub {
+    my $values = shift;
 
-  $progress->update($count++);
+    my $membershipTypeKey = uc $values->{'MembershipType'};
+    my $paymentMethodKey = uc $values->{'PaymentMethod'};
 
-  my $values = map_values($headers, $rowIn);
+    my $taxRate = $taxRates->{'Other'};
 
-  my $membershipTypeKey = uc $values->{'MembershipType'};
-  my $paymentMethodKey = uc $values->{'PaymentMethod'};
-
-  my $taxRate = $taxRates->{'Other'};
-
-  if (exists($taxRates->{$values->{'MembershipBranch'}})) {
-    $taxRate = $taxRates->{$values->{'MembershipBranch'}};
-  }
-
-  my $orderDate = ParseDate($values->{'OrderDate'});
-  $values->{'BeginDate'} = UnixDate($orderDate, '%Y-%m-%d');
-  my $cycle = $cycleDurations->{$values->{'PaymentMethod'}};
-  $values->{'EndDate'} = UnixDate(DateCalc(DateCalc($orderDate, '+' . $cycle), '-1 day'), '%Y-%m-%d');
-
-  $values->{'TrxInvoiceId'} = '';
-  $values->{'ProductCode'} = '';
-  $values->{'RateCode'} = '';
-  $values->{'DiscountAmount'} = 0;
-  $values->{'DiscountCode'} = '';
-
-  my $discount = '';
-  if (exists($membershipMap->{$membershipTypeKey}) 
-      && exists($membershipMap->{$membershipTypeKey}{$paymentMethodKey})) {
-    my $map = $membershipMap->{$membershipTypeKey}{$paymentMethodKey};
-
-    my $branchCode = $branchProgramCodes->{$values->{'MembershipBranch'}};
-    
-    $values->{'ProductCode'} = $map->{'ProductCode'};
-    $values->{'RateCode'} = $map->{'RateCode'};
-    $values->{'MarketCode'} = $map->{'MarketCode'};
-    $values->{'DiscountCode'} = $map->{'DiscountCode'};
-    if (!$map->{'Branch'}) {
-      $values->{'ProductCode'} =~ s/\{BRANCH\}/$branchCode/g;
-      $values->{'MarketCode'} =~ s/\{BRANCH\}/$branchCode/g;
-      $values->{'DiscountCode'} =~ s/\{BRANCH\}/$branchCode/g;
+    if (exists($taxRates->{$values->{'MembershipBranch'}})) {
+      $taxRate = $taxRates->{$values->{'MembershipBranch'}};
     }
 
-    $discount = $map->{'DiscountAmount'};
+    my $orderDate = ParseDate($values->{'OrderDate'});
+    $values->{'BeginDate'} = UnixDate($orderDate, '%Y-%m-%d');
+    my $cycle = $cycleDurations->{$values->{'PaymentMethod'}};
+    $values->{'EndDate'} = UnixDate(DateCalc(DateCalc($orderDate, '+' . $cycle), '-1 day'), '%Y-%m-%d');
+
+    $values->{'TrxInvoiceId'} = '';
+    $values->{'ProductCode'} = '';
+    $values->{'RateCode'} = '';
+    $values->{'DiscountAmount'} = 0;
+    $values->{'DiscountCode'} = '';
+
+    my $discount = '';
+    if (exists($membershipMap->{$membershipTypeKey}) 
+        && exists($membershipMap->{$membershipTypeKey}{$paymentMethodKey})) {
+      my $map = $membershipMap->{$membershipTypeKey}{$paymentMethodKey};
+
+      my $branchCode = $branchProgramCodes->{$values->{'MembershipBranch'}};
+      
+      $values->{'ProductCode'} = $map->{'ProductCode'};
+      $values->{'RateCode'} = $map->{'RateCode'};
+      $values->{'MarketCode'} = $map->{'MarketCode'};
+      $values->{'DiscountCode'} = $map->{'DiscountCode'};
+      if (!$map->{'Branch'}) {
+        $values->{'ProductCode'} =~ s/\{BRANCH\}/$branchCode/g;
+        $values->{'MarketCode'} =~ s/\{BRANCH\}/$branchCode/g;
+        $values->{'DiscountCode'} =~ s/\{BRANCH\}/$branchCode/g;
+      }
+
+      $discount = $map->{'DiscountAmount'};
+    }
+    
+    if ($membershipTypeKey =~ /SPONSOR/i) {
+      $values->{'DiscountCode'} = 'SPONSOR' . $values->{'SponsorDiscount'};
+      $discount = $values->{'SponsorDiscount'} . '%';
+    }
+
+    $missingMembershipMap->{$membershipTypeKey}{$paymentMethodKey}++ unless ($values->{'RateCode'});
+
+    my $baseFee = $values->{'RenewalFee'};
+
+    if ($membershipTypeKey =~ /PRD/) {
+      (my $prd = $membershipTypeKey) =~ s/\-.*//;
+      die "Missing PRD mapping for $prd {$values->{'RateCode'}" 
+        unless (exists($prdRates->{$prd}{$values->{'RateCode'}}));
+      $baseFee = $prdRates->{$prd}{$values->{'RateCode'}};
+    }
+
+    $values->{'DiscountAmount'} = 0;
+    if ($discount =~ /\%/) {
+      $discount =~ s/\%//;
+      $discount /= 100;
+
+      $values->{'DiscountAmount'} = $baseFee * $discount;
+    } elsif ($discount =~ /\$/) {
+      $discount =~ s/\$//;
+
+      $values->{'DiscountAmount'} = $discount;
+    }
+
+    my $finalFee = $baseFee - $values->{'DiscountAmount'};
+    $finalFee = 0 if ($finalFee < 0);
+
+    $values->{'TaxPaidAmount'} = sprintf("%.2f", $finalFee * $taxRate);
+
+    $values->{'TotalAmount'} = $finalFee + $values->{'TaxPaidAmount'};
+
+    write_record(
+      $worksheet,
+      $row++,
+      make_record($values, \@allColumns, $columnMap)
+    );
   }
-  
-  if ($membershipTypeKey =~ /SPONSOR/i) {
-    $values->{'DiscountCode'} = 'SPONSOR' . $values->{'SponsorDiscount'};
-    $discount = $values->{'SponsorDiscount'} . '%';
-  }
+);
 
-  $missingMembershipMap->{$membershipTypeKey}{$paymentMethodKey}++ unless ($values->{'RateCode'});
-
-  my $baseFee = $values->{'RenewalFee'};
-
-  if ($membershipTypeKey =~ /PRD/) {
-    (my $prd = $membershipTypeKey) =~ s/\-.*//;
-    die "Missing PRD mapping for $prd {$values->{'RateCode'}" 
-      unless (exists($prdRates->{$prd}{$values->{'RateCode'}}));
-    $baseFee = $prdRates->{$prd}{$values->{'RateCode'}};
-  }
-
-  $values->{'DiscountAmount'} = 0;
-  if ($discount =~ /\%/) {
-    $discount =~ s/\%//;
-    $discount /= 100;
-
-    $values->{'DiscountAmount'} = $baseFee * $discount;
-  } elsif ($discount =~ /\$/) {
-    $discount =~ s/\$//;
-
-    $values->{'DiscountAmount'} = $discount;
-  }
-
-  my $finalFee = $baseFee - $values->{'DiscountAmount'};
-  $finalFee = 0 if ($finalFee < 0);
-
-  $values->{'TaxPaidAmount'} = sprintf("%.2f", $finalFee * $taxRate);
-
-  $values->{'TotalAmount'} = $finalFee + $values->{'TaxPaidAmount'};
-
-  write_record(
-    $worksheet,
-    $row++,
-    make_record($values, \@allColumns, $columnMap)
-  );
-
-}
-
-close($ordersFile);
-
-print Dumper($missingMembershipMap);
+print Dumper($missingMembershipMap) if (keys %{$missingMembershipMap});
