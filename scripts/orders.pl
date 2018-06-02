@@ -153,3 +153,58 @@ close($orderMaster);
 
 print Dumper($unmappedMembers) if (@{$unmappedMembers});
 
+open(my $programMaster, '>', 'data/program_orders.csv')
+  or die "Couldn't open data/program_orders.csv: $!";
+$csv->print($programMaster, [program_order_master_fields()]);
+
+my $orderHeaderMap = {
+  'Session' => 'Session',
+  'Program End Date' => 'ProgramEndDate',
+  'Last Name' => 'LastName',
+  'Item Description' => 'ItemDescription',
+  'Member ID' => 'MemberId',
+  'Receipt Number' => 'ReceiptNumber',
+  'Fee Paid' => 'FeePaid',
+  'Date Paid' => 'DatePaid',
+  'GL Account' => 'GlAccount',
+  'Program Start Date' => 'ProgramStartDate',
+  'Billable Member Last Name' => 'BillableLastName',
+  'Billable Member First Name' => 'BillableFirstName',
+  'Branch' => 'Branch',
+  'Branch Name' => 'BranchName',
+  'Cycle' => 'Cycle',
+  'Program Description' => 'ProgramDescription',
+  'First Name' => 'FirstName',
+  'billable Member Id' => 'BillableMemberId'  
+};
+
+process_data_file(
+  'data/ProgramOrders.csv',
+  sub {
+    my $values = shift;
+    
+    $values->{'OrderNo'} = $orderNo++;
+
+    $values->{'PerMemberId'} = lookup_id($values->{'MemberId'});
+    $values->{'PerBillableMemberId'} = lookup_id($values->{'BillableMemberId'});
+
+    $values->{'OrderDate'} = UnixDate($values->{'DatePaid'}, '%Y-%m-%d');
+    $values->{'StatusDate'} = $values->{'OrderDate'};
+
+    # print Dumper($values);exit;
+
+    my $record = make_record($values, \@allColumns, $columnMap);
+    write_record($worksheet, $order++, $record);
+
+    $csv->print($programMaster, [
+      @{$record},
+      $values->{'OrderNo'},
+      $values->{'OrderDate'},
+      $values->{'StatusDate'},
+      $values->{'PerMemberId'},
+      $values->{'PerBillableMemberId'},
+      ]);
+  },
+  undef,
+  $orderHeaderMap
+);
