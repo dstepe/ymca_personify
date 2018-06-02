@@ -15,14 +15,12 @@ use Term::ProgressBar;
 
 my $templateName = 'DCT_ORDER_MASTER-42939';
 
-my $orderNo = 1000000000;
-
 my $columnMap = {
   'ORDER_NO'                      => { 'type' => 'record', 'source' => 'OrderNo' },
   'ORDER_DATE'                    => { 'type' => 'record', 'source' => 'OrderDate' },
   'ORG_ID'                        => { 'type' => 'static', 'source' => 'GMVYMCA' },
   'ORG_UNIT_ID'                   => { 'type' => 'static', 'source' => 'GMVYMCA' },
-  'BILL_CUSTOMER_ID'              => { 'type' => 'record', 'source' => 'PerMemberId' },
+  'BILL_CUSTOMER_ID'              => { 'type' => 'record', 'source' => 'PerBillableMemberId' },
   'BILL_ADDRESS_TYPE_CODE'        => { 'type' => 'static', 'source' => 'HOME' },
   'SHIP_CUSTOMER_ID'              => { 'type' => 'record', 'source' => 'PerMemberId' },
   'ORDER_STATUS_CODE'             => { 'type' => 'static', 'source' => 'A' },
@@ -83,73 +81,68 @@ my $csv = Text::CSV_XS->new ({ auto_diag => 1, eol => $/ });
 
 open(my $orderMaster, '>', 'data/member_orders.csv')
   or die "Couldn't open data/member_orders.csv: $!";
-$csv->print($orderMaster, [order_master_fields()]);
+$csv->print($orderMaster, [member_order_master_fields()]);
 
 my $types = {};
 my $unmappedMembers = [];
 
-my($ordersFile, $headers, $totalRows) = open_data_file('data/MembershipOrders.csv');
-
-print "Processing orders\n";
-my $progress = Term::ProgressBar->new({ 'count' => $totalRows });
+my $orderNo = 1000000000;
 my $order = 1;
-my $count = 1;
-while(my $rowIn = $csv->getline($ordersFile)) {
+process_data_file(
+  'data/MembershipOrders.csv',
+  sub {
+    my $values = shift;
+    # print Dumper($values);exit;
 
-  $progress->update($count++);
+    $types->{$values->{'MembershipTypeDes'}}{$values->{'PaymentMethod'}}++;
 
-  my $values = map_values($headers, $rowIn);
-  # print Dumper($values);exit;
+    return if (grep { uc $_ eq uc $values->{'MembershipTypeDes'} } @skipTypes);
 
-  $types->{$values->{'MembershipTypeDes'}}{$values->{'PaymentMethod'}}++;
+    $values->{'PerMemberId'} = lookup_id($values->{'MemberId'});
+    $values->{'PerBillableMemberId'} = $values->{'PerMemberId'};
 
-  next if (grep { uc $_ eq uc $values->{'MembershipTypeDes'} } @skipTypes);
+    unless ($values->{'PerMemberId'}) {
+      push(@{$unmappedMembers}, $values);
+      return;
+    }
 
-  $values->{'PerMemberId'} = lookup_id($values->{'MemberId'});
+    # OrderDate must be start of current membership cycle
+    #  NextBillDate - (method offset)
+    $values->{'OrderDate'} = UnixDate(
+      DateCalc(
+        ParseDate($values->{'NextBillDate'}), 
+        '-' . $cycleDurations->{$values->{'PaymentMethod'}}
+        ), 
+      '%Y-%m-%d'
+    );
 
-  unless ($values->{'PerMemberId'}) {
-    push(@{$unmappedMembers}, $values);
-    next;
-  }
+    # Catch any future dates
 
-  # OrderDate must be start of current membership cycle
-  #  NextBillDate - (method offset)
-  $values->{'OrderDate'} = UnixDate(
-    DateCalc(
-      ParseDate($values->{'NextBillDate'}), 
-      '-' . $cycleDurations->{$values->{'PaymentMethod'}}
-      ), 
-    '%Y-%m-%d'
-  );
+    $values->{'StatusDate'} = $values->{'OrderDate'};
+    $values->{'OrderNo'} = $orderNo++;
 
-  # Catch any future dates
+    my $record = make_record($values, \@allColumns, $columnMap);
+    write_record($worksheet, $order++, $record);
 
-  $values->{'StatusDate'} = $values->{'OrderDate'};
-  $values->{'OrderNo'} = $orderNo++;
+    $values->{'RenewMembershipFee'} =~ s/[^0-9\.]//g;
 
-  my $record = make_record($values, \@allColumns, $columnMap);
-  write_record($worksheet, $order++, $record);
-
-  $values->{'RenewMembershipFee'} =~ s/[^0-9\.]//g;
-
-  $csv->print($orderMaster, [
-    @{$record}, 
-    $values->{'MembershipTypeDes'},
-    $values->{'PaymentMethod'}, 
-    $values->{'RenewMembershipFee'}, 
-    $values->{'BranchCode'}, 
-    $values->{'MembershipBranch'}, 
-    $values->{'CompanyName'},
-    $values->{'NextBillDate'}, 
-    $values->{'JoinDate'},
-    $values->{'FamilyId'}, 
-    $values->{'PerMemberId'},
-    $values->{'SponsorDiscount'},
+    $csv->print($orderMaster, [
+      @{$record}, 
+      $values->{'MembershipTypeDes'},
+      $values->{'PaymentMethod'}, 
+      $values->{'RenewMembershipFee'}, 
+      $values->{'BranchCode'}, 
+      $values->{'MembershipBranch'}, 
+      $values->{'CompanyName'},
+      $values->{'NextBillDate'}, 
+      $values->{'JoinDate'},
+      $values->{'FamilyId'}, 
+      $values->{'PerMemberId'},
+      $values->{'SponsorDiscount'},
     ]);
+  }
+);
 
-}
-
-close($ordersFile);
 close($orderMaster);
 
 # foreach my $type (sort keys %{$types}) {
@@ -158,5 +151,5 @@ close($orderMaster);
 #   }
 # }
 
-print Dumper($unmappedMembers);
+print Dumper($unmappedMembers) if (@{$unmappedMembers});
 

@@ -32,7 +32,8 @@ our @EXPORT_OK = qw(
   get_gender
   is_member
   billable_member
-  order_master_fields
+  member_order_master_fields
+  program_order_master_fields
   branch_name_map
 );
 
@@ -55,7 +56,8 @@ our @EXPORT = qw(
   clean_customer
   is_member
   billable_member
-  order_master_fields
+  member_order_master_fields
+  program_order_master_fields
   branch_name_map
 );
 
@@ -187,6 +189,8 @@ sub make_record {
 sub lookup_id {
   my $tId = shift;
 
+  $tId = sprintf('%09d', $tId) if ($tId =~ /^\d/);
+  
   my($pId) = $dbh->selectrow_array(q{
     select p_id
       from ids
@@ -256,9 +260,10 @@ sub open_data_file {
 sub process_data_file {
   my $file = shift;
   my $func = shift;
-  my $heading =shift || $file;
+  my $heading = shift || $file;
+  my $headerMap = shift || {};
 
-  my($dataFile, $headers, $totalRows) = open_data_file($file);
+  my($dataFile, $headers, $totalRows) = open_data_file($file, $headerMap);
 
   my $showProgress = $totalRows > 100;
 
@@ -414,7 +419,7 @@ sub branch_name_map {
   };
 }
 
-sub order_master_fields {
+sub member_order_master_fields {
 
   my @orderMasterFields = qw(
     OrderNo
@@ -461,6 +466,37 @@ sub order_master_fields {
     FamilyId
     PerMemberId
     SponsorDiscount
+  );
+
+  return @orderMasterFields;
+}
+
+sub program_order_master_fields {
+
+  my @orderMasterFields = qw(
+    Session
+    ProgramEndDate
+    LastName
+    ItemDescription
+    MemberId
+    ReceiptNumber
+    FeePaid
+    DatePaid
+    GlAccount
+    ProgramStartDate
+    BillableLastName
+    BillableFirstName
+    Branch
+    BranchName
+    Cycle
+    ProgramDescription
+    FirstName
+    BillableMemberId
+    OrderNo
+    OrderDate
+    StatusDate
+    PerMemberId
+    PerBillableMemberId
   );
 
   return @orderMasterFields;
