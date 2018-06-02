@@ -141,15 +141,9 @@ process_data_file(
       $values->{'SponsorDiscount'},
     ]);
   }
-);
+) if (1);
 
 close($orderMaster);
-
-# foreach my $type (sort keys %{$types}) {
-#   foreach my $method (sort keys %{$types->{$type}}) {
-#     print "$type\t$method\t$types->{$type}{$method}\n";
-#   }
-# }
 
 print Dumper($unmappedMembers) if (@{$unmappedMembers});
 
@@ -191,13 +185,31 @@ process_data_file(
     $values->{'OrderDate'} = UnixDate($values->{'DatePaid'}, '%Y-%m-%d');
     $values->{'StatusDate'} = $values->{'OrderDate'};
 
-    # print Dumper($values);exit;
+    $values->{'FeePaid'} =~ s/\$//;
 
     my $record = make_record($values, \@allColumns, $columnMap);
     write_record($worksheet, $order++, $record);
 
     $csv->print($programMaster, [
       @{$record},
+      $values->{'Session'},
+      $values->{'ProgramEndDate'},
+      $values->{'LastName'},
+      $values->{'ItemDescription'},
+      $values->{'MemberId'},
+      $values->{'ReceiptNumber'},
+      $values->{'FeePaid'},
+      $values->{'DatePaid'},
+      $values->{'GlAccount'},
+      $values->{'ProgramStartDate'},
+      $values->{'BillableLastName'},
+      $values->{'BillableFirstName'},
+      $values->{'Branch'},
+      $values->{'BranchName'},
+      $values->{'Cycle'},
+      $values->{'ProgramDescription'},
+      $values->{'FirstName'},
+      $values->{'BillableMemberId'},
       $values->{'OrderNo'},
       $values->{'OrderDate'},
       $values->{'StatusDate'},

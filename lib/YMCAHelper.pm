@@ -190,7 +190,7 @@ sub lookup_id {
   my $tId = shift;
 
   $tId = sprintf('%09d', $tId) if ($tId =~ /^\d/);
-  
+
   my($pId) = $dbh->selectrow_array(q{
     select p_id
       from ids
@@ -426,7 +426,7 @@ sub member_order_master_fields {
     OrderDate
     OrgId
     OrgUnitId
-    BillCustomerId
+    PerBillableMemberId
     BillAddressTypeCode
     ShipCustomerId
     OrderMethodCode
@@ -474,6 +474,39 @@ sub member_order_master_fields {
 sub program_order_master_fields {
 
   my @orderMasterFields = qw(
+    OrderNo
+    OrderDate
+    OrgId
+    OrgUnitId
+    BillCustomerId
+    BillAddressTypeCode
+    ShipCustomerId
+    OrderMethodCode
+    OrderStatusCode
+    OrderStatusDate
+    OrdstsReasonCode
+    ClOrderMethodCode
+    CouponCode
+    Application
+    AckLetterMethodCode
+    PoNumber
+    ConfirmationNo
+    AckLetterPrintDate
+    ConfirmationDate
+    OrderCompleteFlag
+    AdvContractId
+    AdvAgencyCustId
+    BillSalesTerritory
+    FndGiveEmployerCreditFlag
+    ShipSalesTerritory
+    PosFlag
+    PosCountryCode
+    PosState
+    PosPostalCode
+    AdvRateCardYearCode
+    AdvAgencySubCustId
+    EmployerCustomerId
+    OldOrderNo
     Session
     ProgramEndDate
     LastName

@@ -23,9 +23,9 @@ my $columnMap = {
   'SHIP_ADDRESS_TYPE_CODE'             => { 'type' => 'static', 'source' => 'HOME' },
   'INVOICE_NO'                         => { 'type' => 'record', 'source' => 'TrxInvoiceId' },
   'INVOICE_DATE'                       => { 'type' => 'record', 'source' => 'OrderDate' },
-  'SUBSYSTEM'                          => { 'type' => 'static', 'source' => 'MBR' },
+  'SUBSYSTEM'                          => { 'type' => 'record', 'source' => 'SubSystem' },
   'PRODUCT_CODE'                       => { 'type' => 'record', 'source' => 'ProductCode' },
-  'PARENT_PRODUCT'                     => { 'type' => 'static', 'source' => 'GMV' },
+  'PARENT_PRODUCT'                     => { 'type' => 'record', 'source' => 'ParentProductCode' },
   'LINE_TYPE'                          => { 'type' => 'static', 'source' => 'IP' },
   'LINE_STATUS_CODE'                   => { 'type' => 'static', 'source' => 'A' },
   'LINE_STATUS_DATE'                   => { 'type' => 'record', 'source' => 'OrderDate' },
@@ -34,8 +34,8 @@ my $columnMap = {
   'RECOGNITION_STATUS_CODE'            => { 'type' => 'static', 'source' => 'C' },
   'RATE_STRUCTURE'                     => { 'type' => 'static', 'source' => 'LIST' },
   'RATE_CODE'                          => { 'type' => 'record', 'source' => 'RateCode' },
-  'TAXABLE_FLAG'                       => { 'type' => 'static', 'source' => 'Y' },
-  'TAX_CATEGORY_CODE'                  => { 'type' => 'static', 'source' => 'SALES' },
+  'TAXABLE_FLAG'                       => { 'type' => 'record', 'source' => 'TaxableFlag' },
+  'TAX_CATEGORY_CODE'                  => { 'type' => 'record', 'source' => 'TaxCategoryCode' },
   'REQUESTED_QTY'                      => { 'type' => 'static', 'source' => '1' },
   'ORDER_QTY'                          => { 'type' => 'static', 'source' => '1' },
   'TOTAL_AMOUNT'                       => { 'type' => 'record', 'source' => 'TotalAmount' },
@@ -44,7 +44,7 @@ my $columnMap = {
   'BACK_ISSUE_FLAG'                    => { 'type' => 'static', 'source' => 'Y' },
   'INITIAL_BEGIN_DATE'                 => { 'type' => 'record', 'source' => 'JoinDate' },
   'RETURNED_QTY'                       => { 'type' => 'static', 'source' => '0' },
-  'PAYOR_CUSTOMER_ID'                  => { 'type' => 'record', 'source' => 'BillCustomerId' },
+  'PAYOR_CUSTOMER_ID'                  => { 'type' => 'record', 'source' => 'PerBillableMemberId' },
   'RECEIPT_TYPE'                       => { 'type' => 'static', 'source' => 'CASH' },
   'RECEIPT_CURRENCY_CODE'              => { 'type' => 'static', 'source' => 'USD' },
   'RECEIPT_DATE'                       => { 'type' => 'record', 'source' => 'OrderDate' },
@@ -61,7 +61,7 @@ my $columnMap = {
   'MARKET_CODE'                        => { 'type' => 'record', 'source' => 'MarketCode' },
   'COMMENTS_ON_INVOICE_FLAG'           => { 'type' => 'static', 'source' => 'N' },
   'AUTO_PAY_METHOD_CODE'               => { 'type' => 'static', 'source' => 'NONE' },
-  'ATTENDANCE_FLAG'                    => { 'type' => 'static', 'source' => 'N' },
+  'ATTENDANCE_FLAG'                    => { 'type' => 'record', 'source' => 'AttendanceFlag' },
   'BLOCK_SALES_TAX_FLAG'               => { 'type' => 'static', 'source' => 'N' },
   'LINE_COMPLETE_FLAG'                 => { 'type' => 'static', 'source' => 'N' },
   'RENEW_TO_CC_FLAG'                   => { 'type' => 'static', 'source' => 'N' },
@@ -132,6 +132,12 @@ process_data_file(
   'data/member_orders.csv',
   sub {
     my $values = shift;
+
+    $values->{'SubSystem'} = 'MBR';
+    $values->{'ParentProductCode'} = 'GMV';
+    $values->{'TaxableFlag'} = 'Y';
+    $values->{'TaxCategoryCode'} = 'SALES';
+    $values->{'AttendanceFlag'} = 'N';
 
     my $membershipTypeKey = uc $values->{'MembershipType'};
     my $paymentMethodKey = uc $values->{'PaymentMethod'};
@@ -214,6 +220,42 @@ process_data_file(
       make_record($values, \@allColumns, $columnMap)
     );
   }
-);
+) if (1);
 
 print Dumper($missingMembershipMap) if (keys %{$missingMembershipMap});
+
+process_data_file(
+  'data/program_orders.csv',
+  sub {
+    my $values = shift;
+    # dd($values);
+
+    $values->{'SubSystem'} = 'MTG';
+    $values->{'RateCode'} = 'STD';
+    $values->{'MarketCode'} = '';
+    $values->{'TaxableFlag'} = 'N';
+    $values->{'TaxCategoryCode'} = '';
+    $values->{'DiscountAmount'} = 0;
+    $values->{'DiscountCode'} = '';
+    $values->{'TaxPaidAmount'} = 0;
+    $values->{'AttendanceFlag'} = 'Y';
+    $values->{'JoinDate'} = '';
+    
+    $values->{'BeginDate'} = UnixDate($values->{'ProgramStartDate'}, '%Y-%m-%d');
+    $values->{'EndDate'} = UnixDate($values->{'ProgramEndDate'}, '%Y-%m-%d');
+
+    $values->{'TrxInvoiceId'} = $values->{'ReceiptNumber'};
+
+    $values->{'TotalAmount'} = $values->{'FeePaid'};
+
+    # Lookup product code
+    $values->{'ProductCode'} = '';
+    $values->{'ParentProductCode'} = $values->{'ProductCode'};
+
+    write_record(
+      $worksheet,
+      $row++,
+      make_record($values, \@allColumns, $columnMap)
+    );
+  }
+);
