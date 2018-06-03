@@ -35,6 +35,7 @@ our @EXPORT_OK = qw(
   member_order_fields
   program_order_fields
   branch_name_map
+  programs_to_skip
 );
 
 # these are exported by default.
@@ -59,6 +60,7 @@ our @EXPORT = qw(
   member_order_fields
   program_order_fields
   branch_name_map
+  programs_to_skip
 );
 
 my $csv = Text::CSV_XS->new ({ auto_diag => 1 });
@@ -458,13 +460,121 @@ sub program_order_fields {
     ProgramStartDate
     ProgramEndDate
     ReceiptNumber
+    ProgramFee
     FeePaid
+    Balance
     DatePaid
     ItemDescription
     Cycle
   ));
 
   return @orderFields;
+}
+
+sub programs_to_skip {
+  return (
+    q{17th Annual Turkey Trot 5K race},
+    q{2 Hour Cycle},
+    q{Adult Adaptive Aquatics},
+    q{Adult Soccer League},
+    q{Adult Swim Lessons- 4 week special},
+    q{Adventure Night},
+    q{Adventures In Storytelling},
+    q{Aquatic Easter Egg Hunt},
+    q{AQUATICS FOR PEOPLE WITH DISABILITIES},
+    q{Art Camp},
+    q{ASHI CPR},
+    q{Atrium Camp School Out Days},
+    q{BADMINTON - RECREATIONAL OPEN},
+    q{Barracuda Lessons},
+    q{Baseball/Softball Camp},
+    q{Breakfast with Santa 2015},
+    q{Breakfast with Santa},
+    q{Breakfast With Santa},
+    q{Bump, Set, Splash},
+    q{Car Show Trophy Sponsorship},
+    q{Cardio Gold (Seniors)},
+    q{Chair Yoga},
+    q{Chefs in Training},
+    q{Childrens Cntr Sports All Sorts},
+    q{Connect. Condition. Challenge. Compete},
+    q{Couch to 5k with Breanna},
+    q{Daniel Plan},
+    q{Dive-in movie night},
+    q{Dodgeball Tournament},
+    q{Dodgeball},
+    q{Double Decade Cycling},
+    q{Downtown Showdown Teen Basketball},
+    q{Easter Bunny Lunch},
+    q{Eel},
+    q{Enhance Fitness},
+    q{Express Strength Circuit},
+    q{Fairfield Family Y Walking Club},
+    q{Fall Fest},
+    q{Fall Weight Loss Challenge Sept. 18th-Nov.10th},
+    q{Family game night/ special events},
+    q{Floating Pumpkin Patch},
+    q{Frog Jog},
+    q{Good Friday Prayer Breakfast},
+    q{Group CORE/CORE Focus Together},
+    q{Group Power/Strength Train Together},
+    q{Guppy},
+    q{Gym Essentials},
+    q{Gymnastics - JR HIGH SCHOOL},
+    q{Gymnastics - PRIVATE LESSONS},
+    q{Harvest Bash},
+    q{Healthy Nutrition Class},
+    q{Homeschool Gym and Swim},
+    q{Indoor 5K- New Year's Day},
+    q{Indoor Triathlon},
+    q{Injury Screens},
+    q{Kick Boxing},
+    q{Kickball},
+    q{Lifeguard},
+    q{LIVESTRONG Bootcamp},
+    q{Livestrong Car Show},
+    q{Locker Rental},
+    q{Luau Party},
+    q{Lunch & Learn},
+    q{Lunch N Learns},
+    q{Miler's Club},
+    q{Minnow},
+    q{Nutrition Lecture Series},
+    q{Open Dodge Ball},
+    q{Operation Splash},
+    q{Outside Groups / Swim},
+    q{P.H.I.T.},
+    q{Pajama and Movie Night},
+    q{pee wee mini arts camp},
+    q{Preteen Night/Kid's Night Out},
+    q{Private Spanish Lessons},
+    q{Private Sports Instruction},
+    q{Private Swim Lessons},
+    q{pumpkin painting},
+    q{Pump},
+    q{Runners Club (Couch to 5K)},
+    q{Seniors Focus Group},
+    q{Small Group Training},
+    q{Snacks With Santa},
+    q{Speed and Agility Training},
+    q{Splash and Dash Indoor Triathlon},
+    q{Spring Fling Dance A Thon},
+    q{Step},
+    q{Stranded Island Camp},
+    q{Stroke Development},
+    q{Summer 1,000 Rep Challenge},
+    q{Summer Wellness Challenge},
+    q{Triathlon Clinic},
+    q{TRX Small Group},
+    q{Twilight Easter Egg Hunt},
+    q{Two Hour Cycle},
+    q{Underwater Easter Egg Hunt},
+    q{Water in Motion},
+    q{Water Volleyball},
+    q{Y Swim Lesson Instructor Certification},
+    q{Youth Stage 2 (Polliwog 2)},
+    q{Zumba},
+  );
 }
 
 1;

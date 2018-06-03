@@ -129,11 +129,18 @@ process_data_file(
     $record = make_record($values, [member_order_fields()], make_column_map([member_order_fields()]));
     $csv->print($orderMaster, $record);
   }
-) if (1);
+) if (0);
 
 close($orderMaster);
 
 print Dumper($unmappedMembers) if (@{$unmappedMembers});
+
+my $dbh = DBI->connect('dbi:SQLite:dbname=db/ymca.db','','');
+
+my $noProductCodeWorkbook = make_workbook('missing_product_code');
+my $noProductCodeWorksheet = make_worksheet($noProductCodeWorkbook, 
+  ['Type', 'Branch', 'Cycle', 'Description', 'Summary', 'Session', 'Program Skipped']);
+my $noProductRow = 1;
 
 open(my $programMaster, '>', 'data/program_orders.csv')
   or die "Couldn't open data/program_orders.csv: $!";
@@ -167,7 +174,25 @@ process_data_file(
     $values->{'OrderDate'} = UnixDate($values->{'DatePaid'}, '%Y-%m-%d');
     $values->{'StatusDate'} = $values->{'OrderDate'};
 
+    $values->{'Balance'} = '';
+    $values->{'ProgramFee'} = '';
+
     $values->{'FeePaid'} =~ s/\$//;
+
+    $values->{'ProductCode'} = lookup_product_code('program', $values);
+
+    unless ($values->{'ProductCode'}) {
+      my $skipped = grep { $values->{'ProgramDescription'} eq $_ } programs_to_skip();
+      write_record($noProductCodeWorksheet, $noProductRow++, [
+        'program',
+        $values->{'BranchName'},
+        $values->{'Cycle'},
+        $values->{'ProgramDescription'},
+        $values->{'ItemDescription'},
+        '',
+        $skipped ? 'Skipped' : ''
+      ]);      
+    }
 
     my $record = make_record($values, \@allColumns, $columnMap);
     write_record($worksheet, $order++, $record);
@@ -180,52 +205,107 @@ process_data_file(
 ) if (1);
 
 $orderHeaderMap = {
-  'Amount' => 'FeePaid',
-  'Branch Name' => 'BranchName',
-  'Date' => 'Date',
-  'End Date' => 'ProgramEndDate',
-  'Location' => 'Location',
-  'Member Fee' => 'MemberFee',
-  'Member ID' => 'MemberId',
-  'Non- Member Fee' => 'NonMemberFee',
+  'Branch' => 'BranchName',
+  'Class Summary' => 'ItemDescription',
+  'Current Balance' => 'Balance',
+  'Date Enrolled' => 'DateEnrolled',
   'Participant Id' => 'ParticipantId',
   'Primary Sponsor Id' => 'PrimarySponsorId',
-  'Program Branch' => 'ProgramBranch',
   'Program Description' => 'ProgramDescription',
-  'Program Location Or Session' => 'ProgramLocation',
-  'Program Member Fee' => 'ProgramMemberFee',
-  'Program Schedule' => 'Schedule',
-  'Program Type' => 'ProgramType',
-  'Program' => 'Program',
-  'Receipt Number' => 'ReceiptNumber',
-  'Season' => 'Season',
-  'Schedule' => 'Schedule',
+  'Program Fee' => 'ProgramFee',
+  'Session' => 'Session',
   'Start Date' => 'ProgramStartDate',
 };
 
-# process_data_file(
-#   'data/ChildcareOrders.csv',
-#   sub {
-#     my $values = shift;
+foreach my $branchFile (qw( Atrium EastButler Fairfield Fitton Middletown )) {
+  process_data_file(
+    'data/Camp' . $branchFile . '.csv',
+    sub {
+      my $values = shift;
+      # dd($values);
 
-#     $values->{'OrderNo'} = $orderNo++;
+      $values->{'OrderNo'} = $orderNo++;
 
-#     $values->{'PerMemberId'} = lookup_id($values->{'ParticipantId'});
-#     $values->{'PerBillableMemberId'} = lookup_id($values->{'PrimarySponsorId'});
+      $values->{'Cycle'} = '';
+      $values->{'ProgramEndDate'} = '';
+      $values->{'ReceiptNumber'} = '';
+      
+      $values->{'DatePaid'} = $values->{'DateEnrolled'};
 
-#     $values->{'OrderDate'} = UnixDate($values->{'Date'}, '%Y-%m-%d');
-#     $values->{'StatusDate'} = $values->{'OrderDate'};
+      $values->{'PerMemberId'} = lookup_id($values->{'ParticipantId'});
+      $values->{'PerBillableMemberId'} = lookup_id($values->{'PrimarySponsorId'});
 
-#     $values->{'FeePaid'} =~ s/\$//;
+      $values->{'OrderDate'} = UnixDate($values->{'DateEnrolled'}, '%Y-%m-%d');
+      $values->{'StatusDate'} = $values->{'OrderDate'};
 
-#     my $record = make_record($values, \@allColumns, make_column_map([program_order_fields()]));
-#     write_record($worksheet, $order++, $record);
+      $values->{'Balance'} =~ s/\$//;
+      $values->{'ProgramFee'} =~ s/\$//;
 
-#     $csv->print($programMaster, $record);
-#   },
-#   undef,
-#   $orderHeaderMap
-# );
+      $values->{'FeePaid'} = $values->{'ProgramFee'} - $values->{'Balance'};
+
+      $values->{'ProductCode'} = lookup_product_code('camp', $values);
+
+      unless ($values->{'ProductCode'}) {
+        write_record($noProductCodeWorksheet, $noProductRow++, [
+          'camp',
+          $values->{'BranchName'},
+          '',
+          $values->{'ProgramDescription'},
+          $values->{'ItemDescription'},
+          $values->{'Session'}
+        ]);      
+      }
+
+      my $record = make_record($values, \@allColumns, $columnMap);
+      write_record($worksheet, $order++, $record);
+
+      $record = make_record($values, [program_order_fields()], make_column_map([program_order_fields()]));
+      $csv->print($programMaster, $record);
+    },
+    undef,
+    $orderHeaderMap
+  ) if (1);
+}
+
+close($programMaster);
+
+sub lookup_product_code {
+  my $type = shift;
+  my $values = shift;
+
+  my $branchName = $values->{'BranchName'};
+  my $description = $values->{'ProgramDescription'};
+  my $summary = $values->{'ItemDescription'};
+  my $session = $values->{'Session'};
+
+  # $description =~ s/ +/ /g;
+  # $summary =~ s/ +/ /g;
+
+  my $query = q{
+    select product_code
+      from products
+      where branch = ?
+        and description = ?
+        and summary = ?
+    };
+
+  $query .= q{
+        and session = ?
+      } if ($type eq 'camp');
+
+  my $sth = $dbh->prepare($query);
+
+  $sth->bind_param(1, $branchName);
+  $sth->bind_param(2, $description);
+  $sth->bind_param(3, $summary);
+  $sth->bind_param(4, $session) if ($type eq 'camp');
+
+  $sth->execute();
+
+  my($productCode) = $sth->fetchrow_array();
+
+  return $productCode;
+}
 
 sub make_column_map {
   my $headers = shift;

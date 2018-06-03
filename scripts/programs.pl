@@ -178,7 +178,7 @@ my $addPriceWorksheet = make_worksheet($addPriceWorkbook, \@addPriceAllColumns);
 
 my $csv = Text::CSV_XS->new ({ auto_diag => 1 });
 
-my($dataFile, $headers, $totalRows) = open_data_file('data/ProgramCodes.csv', programCodesHeaderMap());
+my($dataFile, $headers, $totalRows) = open_data_file('data/ProductCodes.csv', programCodesHeaderMap());
 
 our $programCodes = {};
 while(my $rowIn = $csv->getline($dataFile)) {
@@ -217,23 +217,6 @@ while(my $rowIn = $csv->getline($dataFile)) {
 
 close($dataFile);
 
-# ($dataFile, $headers, $totalRows) = open_data_file('data/Childcare.csv', childCareHeaderMap());
-
-# print "Processing child care\n";
-# $progress = Term::ProgressBar->new({ 'count' => $totalRows });
-
-# $count = 1;
-# while(my $rowIn = $csv->getline($dataFile)) {
-
-#   $progress->update($count++);
-
-#   my $values = clean_childcare_values(map_values($headers, $rowIn));
-#   # dump($values); exit;
-#   push(@{$products}, $values);
-# }
-
-# close($dataFile);
-
 ($dataFile, $headers, $totalRows) = open_data_file('data/Camp.csv', campHeaderMap());
 
 print "Processing camps\n";
@@ -246,6 +229,7 @@ while(my $rowIn = $csv->getline($dataFile)) {
 
   my $values = clean_camp_values(map_values($headers, $rowIn));
   # dump($values); exit;
+
   push(@{$products}, $values);
 }
 
@@ -259,6 +243,11 @@ my $collector = {};
 print "Generating program files\n";
 our $partTracker = {};
 my $availableDate = UnixDate(ParseDate('1/1/2000'), '%Y-%m-%d');
+
+my $dbh = DBI->connect('dbi:SQLite:dbname=db/ymca.db','','');
+$dbh->do(q{
+  delete from products
+  });
 
 $progress = Term::ProgressBar->new({ 'count' => scalar(@{$products}) });
 $count = 1;
@@ -276,28 +265,41 @@ foreach my $program (@{$products}) {
   $program->{'Department'} = $productDetails->{'Department'};
   $program->{'DepartmentSubClass'} = $productDetails->{'DepartmentSubClass'};
 
-  write_record($programTypeWorksheet, $programTypeRow++, [
-    $program->{'Source'},
-    $program->{'ProgramNumber'} || '',
-    $program->{'ProgramType'} || '',
-    $program->{'ProgramDescription'} || '',
-    $program->{'SessionStartDate'} || '',
-    $program->{'Schedule'} || '',
-  ]) unless ($program->{'ProductCode'});
+  unless ($program->{'ProductCode'} || grep { $program->{'ProgramDescription'} eq $_ } programs_to_skip()) {
+    write_record($programTypeWorksheet, $programTypeRow++, [
+      $program->{'Source'},
+      $program->{'ProgramNumber'} || '',
+      $program->{'ProgramType'} || '',
+      $program->{'ProgramDescription'} || '',
+      $program->{'SessionStartDate'} || '',
+      $program->{'Schedule'} || '',
+    ]);
 
-  # $collector->{$program->{'ProgramType'} . ' / ' . $program->{'ProgramDescription'}}++;
+    next;
+  }
 
-  # unless (
-  #     $program->{'ClMon'} eq 'Y' ||
-  #     $program->{'ClTue'} eq 'Y' ||
-  #     $program->{'ClWed'} eq 'Y' ||
-  #     $program->{'ClThu'} eq 'Y' ||
-  #     $program->{'ClFri'} eq 'Y' ||
-  #     $program->{'ClSat'} eq 'Y' ||
-  #     $program->{'ClSun'} eq 'Y'
-  #   ) {
-  #   $collector->{$program->{'Schedule'}}++ if (exists($program->{'Schedule'}));
-  # }
+  my $description = $program->{'ProgramDescription'};
+  my $summary = $program->{'Summary'};
+
+  # Something reduces spaces in the order data, so make it consistent
+  # $description =~ s/ +/ /g;
+  # $summary =~ s/ +/ /g;
+
+  # Deal with Excel munging date looking descriptions
+  # $summary = 'Jan-18' if ($summary eq 'Jan 2018');
+  # $summary = 'Feb-18' if ($summary eq 'Feb 2018');
+  # $summary = 'Mar-18' if ($summary eq 'Mar 2018');
+  # $summary = 'Apr-18' if ($summary eq 'Apr 2018');
+  # $summary = 'May-18' if ($summary eq 'May 2018');
+  # $summary = 'Jun-18' if ($summary eq 'Jun 2018');
+  # $summary = 'Jul-18' if ($summary eq 'Jul 2018');
+  # $summary = 'Aug-18' if ($summary eq 'Aug 2018');
+
+  $dbh->do(q{
+    insert into products (product_code, branch, type, description, summary, session)
+      values (?, ?, ?, ?, ?, ?)
+    }, undef, $program->{'ProductCode'}, $program->{'BranchName'}, $program->{'Source'},
+      $description, $summary, $program->{'Session'});
 
   my $productRecord = make_record($program, \@productAllColumns, $productColumnMap);
   write_record($productWorksheet, $row, $productRecord);
@@ -334,11 +336,17 @@ sub get_product_details {
   $productDetails->{'Department'} = $codeInfo->{'ProductClass'};
   $productDetails->{'DepartmentSubClass'} = $codeInfo->{'SubClass'};
 
+  my $increment = get_program_increment(
+    $program->{'BranchCode'}, 
+    $productDetails->{'Department'},
+    $productDetails->{'DepartmentSubClass'}
+  );
+
   my @codeParts;
   push(@codeParts, $program->{'BranchCode'});
   push(@codeParts, $productDetails->{'Department'});
   push(@codeParts, $productDetails->{'DepartmentSubClass'});
-  push(@codeParts, sprintf('%02s', get_program_increment($program->{'BranchCode'}, $codeInfo->{'ProductClass'})));
+  push(@codeParts, sprintf('%02s', $increment));
   push(@codeParts, UnixDate($program->{'SessionStartDate'}, '%m%d%y'));
   push(@codeParts, get_program_season($program->{'ProgramType'}));
   
@@ -362,11 +370,12 @@ sub get_program_season {
 
 sub get_program_increment {
   my $branchCode = shift;
-  my $productClass = shift || 'un';
+  my $department = shift || 'un';
+  my $departmentSubCLass = shift || 'un';
 
   our $partTracker;
 
-  return ++$partTracker->{$branchCode}{$productClass};
+  return ++$partTracker->{$branchCode}{$department}{$departmentSubCLass};
 }
 
 sub clean_program_values {
@@ -375,6 +384,8 @@ sub clean_program_values {
   $values->{'Source'} = 'program';
 
   $values->{'ClCccFlag'} = 'N';
+
+  $values->{'Summary'} = $values->{'ItemDescription'};
 
   $values->{'SessionStartDate'} =~ s/ .*$//;
   $values->{'SessionEndDate'} =~ s/ .*$//;
@@ -429,6 +440,8 @@ sub clean_camp_values {
   $values->{'Source'} = 'camp';
   
   $values->{'ShortPayProcCode'} = 'AR';
+
+  $values->{'Summary'} = $values->{'ClassSummary'};
 
   my $startDate = ParseDate($values->{'SessionStartDate'});
   $values->{'StartDateTime'} = UnixDate($startDate, '%Y-%m-%d %r');
@@ -555,6 +568,24 @@ sub map_program_descriptions {
 
   return $mappedDescription if ($mappedDescription);
 
+  if ($values->{'ProgramDescription'} =~ /Barracuda/i) {
+    foreach my $level (qw( Preschool Toddler Youth )) {
+      if ($values->{'ItemDescription'} =~ /$level (Stage )?(\d+)/i) {
+        $mappedDescription = "$level Swim Level $2";
+        last;
+      }      
+    }
+    if ($values->{'ItemDescription'} =~ /School Age (Stage )?(\d+)/i) {
+      $mappedDescription = "Youth Swim Level $2";
+    }
+    
+    if ($values->{'ItemDescription'} =~ /Pike (Stage )?I/i) {
+      $mappedDescription = "Preschool Swim Level 1";
+    }
+  }
+
+  return $mappedDescription if ($mappedDescription);
+
   $mappedDescription = $values->{'ProgramDescription'};
 
   my %map = (
@@ -596,6 +627,11 @@ sub map_program_descriptions {
     'Strength Train Together' => 'Strength Train Together',
     'Defend Together' => 'Defend Together',
     'Pumpkin Dash' => 'Pumpkin Dash',
+    'Total Body Conditioning' => 'Total Body Conditioning',
+    'Interval Boot' => 'Interval Boot Camp',
+    'First Aid.*(Oxygen|02)' => 'ASHI First Aid & Emergency Oxygen',
+    'H2O?-Cardio-O' => 'H2O-Cardio-O',
+    'Preschool Art camp mini' => 'Pee Wee Mini Arts Camp',
   );
   
   foreach my $clue (keys %map) {
