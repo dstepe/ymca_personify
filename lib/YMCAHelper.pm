@@ -37,6 +37,7 @@ our @EXPORT_OK = qw(
   branch_name_map
   skip_program
   skip_cycle
+  is_company
 );
 
 # these are exported by default.
@@ -63,22 +64,12 @@ our @EXPORT = qw(
   branch_name_map
   skip_program
   skip_cycle
+  is_company
 );
 
 my $csv = Text::CSV_XS->new ({ auto_diag => 1 });
   
 my $dbh = DBI->connect('dbi:SQLite:dbname=db/ymca.db','','');
-
-my @customerCompanies;
-process_data_file(
-  'data/CustomerCompanies.csv',
-  sub {
-    my $values = shift;
-    push(@customerCompanies, $values->{'TRX_ID'});
-  }
-);
-
-#print Dumper(\@customerCompanies);exit;
 
 sub get_template_columns {
   my $templateName = shift;
@@ -299,12 +290,24 @@ sub process_customer_file {
       my $values = clean_customer(shift);
       
       # Skip companies in as customers
-      return if (grep { $values->{'MemberId'} eq $_ } @customerCompanies);
+      return if (is_company($values->{'MemberId'}));
 
       $func->($values);
     },
     'customers'
   );
+}
+
+sub is_company {
+  my $trxId = shift;
+
+  my($count) = $dbh->selectrow_array(q{
+    select count(*)
+      from companies
+      where t_id = ?
+    }, undef, $trxId);
+
+  return $count;
 }
 
 sub clean_customer {

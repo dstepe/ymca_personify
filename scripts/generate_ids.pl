@@ -31,20 +31,11 @@ $dbh->do(q{
   delete from ids
   });
 
-process_data_file(
-  'data/AllMembers.csv',
-  sub {
-    my $values = shift;
-    
-    my $id = sprintf('%012d', $customerSeq++);
+$dbh->do(q{
+  delete from companies
+  });
 
-    write_record($idWorksheet, $row++, [$values->{'MemberId'}, $id, 'person']);
-    $dbh->do(q{
-      insert into ids (t_id, p_id)
-        values (?, ?)
-      }, undef, $values->{'MemberId'}, $id);
-  }
-);
+my %companies;
 
 process_data_file(
   'data/Companies.csv',
@@ -53,10 +44,29 @@ process_data_file(
 
     my $id = sprintf('%012d', $companySeq++);
 
-    write_record($idWorksheet, $row++, [$values->{'CompanyId'}, $id, 'company']);
+    write_record($idWorksheet, $row++, [$values->{'TRX_ID'}, $id, 'company']);
     $dbh->do(q{
       insert into ids (t_id, p_id)
         values (?, ?)
-      }, undef, $values->{'CompanyId'}, $id);
+      }, undef, $values->{'TRX_ID'}, $id);
+
+    $companies{$values->{'TRX_ID'}} = $id;
+  }
+);
+
+process_data_file(
+  'data/AllMembers.csv',
+  sub {
+    my $values = shift;
+    
+    my $id = sprintf('%012d', $customerSeq++);
+
+    return if (exists($companies{$values->{'MemberId'}}));
+
+    write_record($idWorksheet, $row++, [$values->{'MemberId'}, $id, 'person']);
+    $dbh->do(q{
+      insert into ids (t_id, p_id)
+        values (?, ?)
+      }, undef, $values->{'MemberId'}, $id);
   }
 );
