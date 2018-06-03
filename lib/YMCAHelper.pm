@@ -35,7 +35,8 @@ our @EXPORT_OK = qw(
   member_order_fields
   program_order_fields
   branch_name_map
-  programs_to_skip
+  skip_program
+  skip_cycle
 );
 
 # these are exported by default.
@@ -60,7 +61,8 @@ our @EXPORT = qw(
   member_order_fields
   program_order_fields
   branch_name_map
-  programs_to_skip
+  skip_program
+  skip_cycle
 );
 
 my $csv = Text::CSV_XS->new ({ auto_diag => 1 });
@@ -471,8 +473,25 @@ sub program_order_fields {
   return @orderFields;
 }
 
-sub programs_to_skip {
-  return (
+sub skip_cycle {
+  my $cycle = shift;
+
+  return 1 if ($cycle =~ /^2018 Guest Passes/);
+  return 1 if ($cycle =~ /^2018 Personal Training/);
+  return 1 if ($cycle =~ /^2018 Private Swim Lessons/);
+  return 1 if ($cycle =~ /^2018 Spring/);
+  return 1 if ($cycle =~ /^2018 Spring Soccer/);
+  return 1 if ($cycle =~ /^2018 Winter 2/);
+  return 1 if ($cycle =~ /^2018 Winter I/);
+  return 1 if ($cycle =~ /^2018 Youth Basketball/);
+
+  return 0;
+}
+
+sub skip_program {
+  my $program = shift;
+
+  foreach my $skip (
     q{17th Annual Turkey Trot 5K race},
     q{2 Hour Cycle},
     q{Adult Adaptive Aquatics},
@@ -486,10 +505,7 @@ sub programs_to_skip {
     q{ASHI CPR},
     q{Atrium Camp School Out Days},
     q{BADMINTON - RECREATIONAL OPEN},
-    q{Barracuda Lessons},
     q{Baseball/Softball Camp},
-    q{Breakfast with Santa 2015},
-    q{Breakfast with Santa},
     q{Breakfast With Santa},
     q{Bump, Set, Splash},
     q{Car Show Trophy Sponsorship},
@@ -501,7 +517,6 @@ sub programs_to_skip {
     q{Couch to 5k with Breanna},
     q{Daniel Plan},
     q{Dive-in movie night},
-    q{Dodgeball Tournament},
     q{Dodgeball},
     q{Double Decade Cycling},
     q{Downtown Showdown Teen Basketball},
@@ -537,7 +552,7 @@ sub programs_to_skip {
     q{Luau Party},
     q{Lunch & Learn},
     q{Lunch N Learns},
-    q{Miler's Club},
+    q{Miler'+s Club},
     q{Minnow},
     q{Nutrition Lecture Series},
     q{Open Dodge Ball},
@@ -549,10 +564,10 @@ sub programs_to_skip {
     q{Preteen Night/Kid's Night Out},
     q{Private Spanish Lessons},
     q{Private Sports Instruction},
-    q{Private Swim Lessons},
+    q{Private Swim},
     q{pumpkin painting},
     q{Pump},
-    q{Runners Club (Couch to 5K)},
+    q{Runners Club},
     q{Seniors Focus Group},
     q{Small Group Training},
     q{Snacks With Santa},
@@ -573,8 +588,11 @@ sub programs_to_skip {
     q{Water Volleyball},
     q{Y Swim Lesson Instructor Certification},
     q{Youth Stage 2 (Polliwog 2)},
-    q{Zumba},
-  );
+  ) {
+    return 1 if ($program =~ /^$skip/i);
+  }
+
+  return 0;
 }
 
 1;

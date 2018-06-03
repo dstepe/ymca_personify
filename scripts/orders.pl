@@ -182,7 +182,7 @@ process_data_file(
     $values->{'ProductCode'} = lookup_product_code('program', $values);
 
     unless ($values->{'ProductCode'}) {
-      my $skipped = grep { $values->{'ProgramDescription'} eq $_ } programs_to_skip();
+      my $skipped = skip_program($values->{'ProgramDescription'});
       write_record($noProductCodeWorksheet, $noProductRow++, [
         'program',
         $values->{'BranchName'},

@@ -209,8 +209,8 @@ while(my $rowIn = $csv->getline($dataFile)) {
   my $values = clean_program_values(map_values($headers, $rowIn));
   # dump($values); exit;
   
+  next if (skip_cycle($values->{'ProgramType'}));
   next unless ($values->{'Active'} eq 'YES');
-  next if ($values->{'ProgramType'} eq '2018 Spring');
 
   push(@{$products}, $values);
 }
@@ -265,7 +265,7 @@ foreach my $program (@{$products}) {
   $program->{'Department'} = $productDetails->{'Department'};
   $program->{'DepartmentSubClass'} = $productDetails->{'DepartmentSubClass'};
 
-  unless ($program->{'ProductCode'} || grep { $program->{'ProgramDescription'} eq $_ } programs_to_skip()) {
+  unless ($program->{'ProductCode'} || skip_program($program->{'ProgramDescription'})) {
     write_record($programTypeWorksheet, $programTypeRow++, [
       $program->{'Source'},
       $program->{'ProgramNumber'} || '',
@@ -389,7 +389,7 @@ sub clean_program_values {
 
   $values->{'SessionStartDate'} =~ s/ .*$//;
   $values->{'SessionEndDate'} =~ s/ .*$//;
-  my $dow = substr(lc $values->{'WeekDaysString'}, 0, 3);
+  my $dow = substr(lc $values->{'WeekDays'}, 0, 3);
   if (
       $values->{'SessionStartDate'} && 
       $values->{'SessionStartDate'} !~ /^1\/1\/2018/ &&
@@ -411,13 +411,13 @@ sub clean_program_values {
 
   }
 
-  $values->{'ClMon'} = 'Y' if ($values->{'WeekDaysString'} =~ /Mon/i);
-  $values->{'ClTue'} = 'Y' if ($values->{'WeekDaysString'} =~ /Tue/i);
-  $values->{'ClWed'} = 'Y' if ($values->{'WeekDaysString'} =~ /Wed/i);
-  $values->{'ClThu'} = 'Y' if ($values->{'WeekDaysString'} =~ /Thu/i);
-  $values->{'ClFri'} = 'Y' if ($values->{'WeekDaysString'} =~ /Fri/i);
-  $values->{'ClSat'} = 'Y' if ($values->{'WeekDaysString'} =~ /Sat/i);
-  $values->{'ClSun'} = 'Y' if ($values->{'WeekDaysString'} =~ /Sun/i);
+  $values->{'ClMon'} = 'Y' if ($values->{'WeekDays'} =~ /Mon/i);
+  $values->{'ClTue'} = 'Y' if ($values->{'WeekDays'} =~ /Tue/i);
+  $values->{'ClWed'} = 'Y' if ($values->{'WeekDays'} =~ /Wed/i);
+  $values->{'ClThu'} = 'Y' if ($values->{'WeekDays'} =~ /Thu/i);
+  $values->{'ClFri'} = 'Y' if ($values->{'WeekDays'} =~ /Fri/i);
+  $values->{'ClSat'} = 'Y' if ($values->{'WeekDays'} =~ /Sat/i);
+  $values->{'ClSun'} = 'Y' if ($values->{'WeekDays'} =~ /Sun/i);
 
   $values->{'MappedProgramDescription'} = map_program_descriptions($values);
 
@@ -553,7 +553,7 @@ sub map_program_descriptions {
     return $mappedDescription;
   }
 
-  if (grep { $_ eq $values->{'ProgramType'} } ('2018 Little League', '2018 Summer T-Ball')) {
+  if (grep { $values->{'ProgramType'} =~ /$_/ } ('2018 Little League', '2018 Summer T-Ball')) {
     return 'Youth Baseball';
   }
 
@@ -632,6 +632,7 @@ sub map_program_descriptions {
     'First Aid.*(Oxygen|02)' => 'ASHI First Aid & Emergency Oxygen',
     'H2O?-Cardio-O' => 'H2O-Cardio-O',
     'Preschool Art camp mini' => 'Pee Wee Mini Arts Camp',
+    'Crunch +Time' => 'Crunch Time',
   );
   
   foreach my $clue (keys %map) {
@@ -735,29 +736,14 @@ sub programCodesHeaderMap {
 
 sub programsHeaderMap {
   return {
-    "\x{feff}Program No" => 'ProgramNumber',
-    'Active?' => 'Active',
-    'Branch' => 'BranchName',
-    'Class Close Status' => 'CloseStatus',
-    'Class Duration' => 'ClassDuration',
-    'Class Time' => 'ClassStartTime',
-    'Cycle Name' => 'ProgramType',
+    'CycleName' => 'ProgramType',
     'Description' => 'ProgramDescription',
-    'Full Members' => 'FullMemberPrice',
-    'GL Account' => 'GlAccount',
-    'Item Description' => 'ItemDescription',
-    'Item End Date' => 'SessionEndDate',
-    'Item Start Date' => 'SessionStartDate',
-    'Max Age' => 'MaxAgeYears',
-    'MAX Enroll' => 'MaxCapacity',
-    'Min Age' => 'MinAgeYears',
-    'Non-Members' => 'NonMemberPrice',
-    'NonMember Enrollment?' => 'NonMemberEnrollment',
-    'Price' => 'ListPrice',
-    'Program Participant' => 'ProgramParticipantPrice',
-    'Scholarship GL Account' => 'ScholarshipGlAccount',
-    'Tax Rate' => 'TaxRate',
-    'Week Days' => 'WeekDaysString',
+    'MemberFee' => 'FullMemberPrice',
+    'MaximumAge' => 'MaxAgeYears',
+    'MaxEnroll' => 'MaxCapacity',
+    'MinimumAge' => 'MinAgeYears',
+    'NonMemberFee' => 'NonMemberPrice',
+    'BasicMemberFee' => 'ProgramParticipantPrice',
   };
 }
 
