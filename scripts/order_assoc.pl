@@ -43,8 +43,8 @@ while(my $rowIn = $csv->getline($ordersFile)) {
 
   $familyOrders->{$values->{'FamilyId'}} = {
     'OrderNo' => $values->{'OrderNo'},
-    'MemberId' => $values->{'ShipCustomerId'},
-    'BillingId' => $values->{'BillCustomerId'}
+    'MemberId' => $values->{'PerMemberId'},
+    'BillingId' => $values->{'PerBillableMemberId'}
   }
 }
 close($ordersFile);
