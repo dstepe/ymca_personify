@@ -265,7 +265,7 @@ foreach my $program (@{$products}) {
   $program->{'Department'} = $productDetails->{'Department'};
   $program->{'DepartmentSubClass'} = $productDetails->{'DepartmentSubClass'};
 
-  unless ($program->{'ProductCode'} || skip_program($program->{'ProgramDescription'})) {
+  unless ($program->{'ProductCode'}) {
     write_record($programTypeWorksheet, $programTypeRow++, [
       $program->{'Source'},
       $program->{'ProgramNumber'} || '',
@@ -278,6 +278,8 @@ foreach my $program (@{$products}) {
     next;
   }
 
+  next if (skip_program($program->{'ProgramDescription'}));
+  
   my $description = $program->{'ProgramDescription'};
   my $summary = $program->{'Summary'};
 
