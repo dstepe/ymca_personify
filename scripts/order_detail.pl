@@ -222,7 +222,7 @@ process_data_file(
       make_record($values, \@allColumns, $columnMap)
     );
   }
-) if (1);
+);
 
 print Dumper($missingMembershipMap) if (keys %{$missingMembershipMap});
 
@@ -262,4 +262,4 @@ process_data_file(
       make_record($values, \@allColumns, $columnMap)
     );
   }
-) if (1);
+);

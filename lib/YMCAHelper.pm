@@ -157,7 +157,7 @@ sub make_record {
   my $allColumns = shift;
   my $columnMap = shift;
 
-  # print "$allColumns->[3]\n";exit;
+  # print "$allColumns->[32]\n";exit;
   my @record;
   foreach my $field (@{$allColumns}) {
     unless (exists($columnMap->{$field})) {

@@ -129,7 +129,7 @@ process_data_file(
     $record = make_record($values, [member_order_fields()], make_column_map([member_order_fields()]));
     $csv->print($orderMaster, $record);
   }
-) if (0);
+);
 
 close($orderMaster);
 
@@ -202,7 +202,7 @@ process_data_file(
   },
   undef,
   $orderHeaderMap
-) if (1);
+);
 
 $orderHeaderMap = {
   'Branch' => 'BranchName',
@@ -229,6 +229,11 @@ foreach my $branchFile (qw( Atrium EastButler Fairfield Fitton Middletown )) {
       $values->{'Cycle'} = '';
       $values->{'ProgramEndDate'} = '';
       $values->{'ReceiptNumber'} = '';
+      
+      $values->{'ProgramEndDate'} = UnixDate(
+        DateCalc(ParseDate($values->{'ProgramStartDate'}), '+ 5 days'), 
+        '%Y-%m-%d'
+      );
       
       $values->{'DatePaid'} = $values->{'DateEnrolled'};
 
@@ -264,7 +269,7 @@ foreach my $branchFile (qw( Atrium EastButler Fairfield Fitton Middletown )) {
     },
     undef,
     $orderHeaderMap
-  ) if (1);
+  );
 }
 
 close($programMaster);
