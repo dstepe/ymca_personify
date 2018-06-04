@@ -191,7 +191,9 @@ process_data_file(
         $values->{'ItemDescription'},
         '',
         $skipped ? 'Skipped' : ''
-      ]);      
+      ]);
+
+      return;    
     }
 
     my $record = make_record($values, \@allColumns, $columnMap);
@@ -258,7 +260,9 @@ foreach my $branchFile (qw( Atrium EastButler Fairfield Fitton Middletown )) {
           $values->{'ProgramDescription'},
           $values->{'ItemDescription'},
           $values->{'Session'}
-        ]);      
+        ]);
+
+        return;     
       }
 
       my $record = make_record($values, \@allColumns, $columnMap);
