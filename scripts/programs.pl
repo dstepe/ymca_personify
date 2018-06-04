@@ -241,7 +241,7 @@ my $programTypeWorksheet = make_worksheet($programTypeWorkbook,
 
 my $noStartDateWorkbook = make_workbook('missing_start_date');
 my $noStartDateWorksheet = make_worksheet($noStartDateWorkbook, 
-  ['Program', 'Description', 'Session Start Date', 'Class Start Time', 'Duration', 'Week Days']);
+  ['Program', 'Description', 'Summary', 'Session Start Date', 'Class Start Time', 'Duration', 'Week Days']);
 
 my $collector = {};
 print "Generating program files\n";
@@ -285,10 +285,11 @@ foreach my $program (@{$products}) {
 
   next if (skip_program($program->{'ProgramDescription'}));
   
-  unless ($program->{'StartDateTime'}) {
+  unless ($program->{'StartDateTime'}) {        
     write_record($noStartDateWorksheet, $missingStartRow++, [
       $program->{'ProgramType'} || '',
       $program->{'ProgramDescription'} || '',
+      $program->{'ItemDescription'} || '',
       $program->{'SessionStartDate'} || '',
       $program->{'ClassStartTime'} || '',
       $program->{'ClassDuration'} || '',
@@ -407,10 +408,15 @@ sub clean_program_values {
 
   $values->{'SessionStartDate'} =~ s/ .*$//;
   $values->{'SessionEndDate'} =~ s/ .*$//;
-  my $dow = substr(lc $values->{'WeekDays'}, 0, 3);
+
+  my $startDate = get_start_date($values);
+
+  my $dowIndicator = lc $values->{'WeekDays'};
+  $dowIndicator =~ s/^m-/mon-/i;
+  $dowIndicator =~ s/^t-/tue-/i;
+  my $dow = substr($dowIndicator, 0, 3);
   if (
-      $values->{'SessionStartDate'} && 
-      $values->{'SessionStartDate'} !~ /^1\/1\/2018/ &&
+      $startDate && 
       grep { $dow eq $_ } qw( mon tue wed thu fri sat sun )
     ) {
 
@@ -420,7 +426,7 @@ sub clean_program_values {
 
     $values->{'StartDateTime'} = UnixDate(
       Date_GetNext(
-        $values->{'SessionStartDate'} . ' ' . $values->{'ClassStartTime'}, 
+        $startDate . ' ' . $values->{'ClassStartTime'}, 
         $dow, 
         1
       ), '%Y-%m-%d %r');
@@ -441,6 +447,35 @@ sub clean_program_values {
   $values->{'MappedProgramDescription'} = map_program_descriptions($values);
 
   return clean_all_values($values);
+}
+
+sub get_start_date {
+  my $values = shift;
+
+  my $startDate = $values->{'SessionStartDate'};
+
+  return $startDate unless ($startDate eq '1/1/2018');
+
+  # Look for the first "month" word and use it
+  my @months = qw ( jan feb mar apr may jun jul aug sep oct nov dec);
+  $startDate =~ s/[\.\-]/ /g;
+  my @words = split(/ +/, lc $startDate);
+  for (my $i = 0; $i < scalar(@words); $i++) {
+    foreach my $clue (@months) {
+      if ($words[$i] =~ /^$clue/) {
+        my $month = $clue;
+        my $day = '';
+        if (exists($words[$i + 1]) && $words[$i + 1] =~ /\d+/) {
+          $day = $words[$i + 1];
+        } else {
+          $day = 1;
+        }
+        return $month . '/' . $day . '/2018';        
+      }
+    }
+  }
+
+  return $startDate;
 }
 
 sub clean_childcare_values {
