@@ -252,8 +252,6 @@ process_data_file(
 
     $values->{'TotalAmount'} = $values->{'FeePaid'};
 
-    # Lookup product code
-    $values->{'ProductCode'} = '';
     $values->{'ParentProductCode'} = $values->{'ProductCode'};
 
     write_record(

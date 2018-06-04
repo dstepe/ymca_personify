@@ -471,6 +471,7 @@ sub program_order_fields {
     DatePaid
     ItemDescription
     Cycle
+    ProductCode
   ));
 
   return @orderFields;

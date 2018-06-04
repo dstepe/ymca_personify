@@ -1,0 +1,12 @@
+Check how expiration date, last registration and last refund dates should be handled
+
+Determine start date/time for all programs
+
+- CL_CCC_FLAG should always be N for programs?
+  Camps are child care and should be Y.
+
+- Program order detail is missing product code
+  Product code is being looked up in orders for programs but not being passed to order details
+  Will leave this way since lookup needs to know camp vs program, but add to program orders file
+
+Orders details are listed without a product code
