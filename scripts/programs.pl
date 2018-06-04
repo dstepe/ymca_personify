@@ -533,14 +533,13 @@ sub clean_all_values {
   $values->{'ShortPayProcCode'} = 'REJECT' unless ($values->{'ShortPayProcCode'});
   $values->{'ClCccFlag'} = 'Y' unless ($values->{'ClCccFlag'});
 
-  $values->{'ExpirationDate'} = $values->{'SessionEndDate'} || '';
+  $values->{'LastRegistrationDate'} = UnixDate(DateCalc($values->{'EndDateTime'}, 
+    '-3 weeks'), '%Y-%m-%d') if ($values->{'EndDateTime'});
+  $values->{'LastRefundDate'} = UnixDate(DateCalc($values->{'EndDateTime'}, 
+    '+3 months'), '%Y-%m-%d')if ($values->{'EndDateTime'});
+  $values->{'ExpirationDate'} = UnixDate(DateCalc($values->{'StartDateTime'}, 
+    '+3 weeks'), '%Y-%m-%d') if ($values->{'StartDateTime'});
 
-  if ($values->{'StartDateTime'}) {
-    $values->{'LastRegistrationDate'} = UnixDate(DateCalc($values->{'SessionStartDate'}, 
-      '-3 days'), '%Y-%m-%d');
-    $values->{'LastRefundDate'} = UnixDate(DateCalc($values->{'SessionStartDate'}, 
-      '+7 days'), '%Y-%m-%d');
-  }
 
   foreach my $key (qw( NonMemberPrice FullMemberPrice ProgramParticipantPrice)) {
     $values->{$key} =~ s/\$//;
@@ -550,6 +549,7 @@ sub clean_all_values {
   $values->{'EndDateTime'} = '' unless ($values->{'EndDateTime'});
   $values->{'LastRegistrationDate'} = '' unless ($values->{'LastRegistrationDate'});
   $values->{'LastRefundDate'} = '' unless ($values->{'LastRefundDate'});
+  $values->{'ExpirationDate'} = '' unless ($values->{'ExpirationDate'});
 
   $values->{'LimitedSeatsThreshold'} = 10;
 
