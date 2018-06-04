@@ -409,6 +409,24 @@ sub clean_program_values {
   $values->{'SessionStartDate'} =~ s/ .*$//;
   $values->{'SessionEndDate'} =~ s/ .*$//;
 
+  if ($values->{'ProgramDescription'} eq 'Little League & RBI Program'){
+    $values->{'WeekDays'} = 'Saturday' if ($values->{'WeekDays'} =~ /^var/i);
+    $values->{'ClassDuration'} = '1 hour' if ($values->{'ClassDuration'} =~ /^var/i);
+    
+    # $values->{'ClassStartTime'} = '9:00 am'
+    #   if ($values->{'ClassStartTime'} =~ /^var/i &&
+    #     ($values->{'ItemDescription'} eq '10 and under (Little League'
+    #     || $values->{'ItemDescription'} eq '12 and Under( Little League)'
+    #     || $values->{'ItemDescription'} eq '8 and Under ( RBI)')
+    #   );
+
+    # $values->{'ClassStartTime'} = '5:00 pm'
+    #   if ($values->{'ClassStartTime'} =~ /^var/i &&
+    #     ($values->{'ItemDescription'} eq '6 and Under (RBI)'
+    #     || $values->{'ItemDescription'} eq '10 and Under (RBI)')
+    #   );
+  }
+
   my $startDate = get_start_date($values);
 
   my $dowIndicator = lc $values->{'WeekDays'};
