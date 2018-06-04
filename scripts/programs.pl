@@ -241,7 +241,8 @@ my $programTypeWorksheet = make_worksheet($programTypeWorkbook,
 
 my $noStartDateWorkbook = make_workbook('missing_start_date');
 my $noStartDateWorksheet = make_worksheet($noStartDateWorkbook, 
-  ['Program', 'Description', 'Summary', 'Session Start Date', 'Class Start Time', 'Duration', 'Week Days']);
+  ['Start', 'End', 'Program', 'Description', 'Summary', 'Session Start Date', 
+    'Class Start Time', 'Duration', 'Week Days']);
 
 my $collector = {};
 print "Generating program files\n";
@@ -262,7 +263,6 @@ foreach my $program (@{$products}) {
   $progress->update($count++);
 
   $program->{'AvailableDate'} = $availableDate;
-  $program->{'ExpirationDate'} = $program->{'SessionEndDate'} || '';
   
   my $productDetails = get_product_details($program);
 
@@ -285,8 +285,10 @@ foreach my $program (@{$products}) {
 
   next if (skip_program($program->{'ProgramDescription'}));
   
-  unless ($program->{'StartDateTime'}) {        
+  unless ($program->{'StartDateTime'} && $program->{'EndDateTime'}) {        
     write_record($noStartDateWorksheet, $missingStartRow++, [
+      $program->{'StartDateTime'} || '',
+      $program->{'EndDateTime'} || '',
       $program->{'ProgramType'} || '',
       $program->{'ProgramDescription'} || '',
       $program->{'ItemDescription'} || '',
@@ -411,21 +413,19 @@ sub clean_program_values {
 
   if ($values->{'ProgramDescription'} eq 'Little League & RBI Program'){
     $values->{'WeekDays'} = 'Saturday' if ($values->{'WeekDays'} =~ /^var/i);
-    $values->{'ClassDuration'} = '1 hour' if ($values->{'ClassDuration'} =~ /^var/i);
-    
-    # $values->{'ClassStartTime'} = '9:00 am'
-    #   if ($values->{'ClassStartTime'} =~ /^var/i &&
-    #     ($values->{'ItemDescription'} eq '10 and under (Little League'
-    #     || $values->{'ItemDescription'} eq '12 and Under( Little League)'
-    #     || $values->{'ItemDescription'} eq '8 and Under ( RBI)')
-    #   );
-
-    # $values->{'ClassStartTime'} = '5:00 pm'
-    #   if ($values->{'ClassStartTime'} =~ /^var/i &&
-    #     ($values->{'ItemDescription'} eq '6 and Under (RBI)'
-    #     || $values->{'ItemDescription'} eq '10 and Under (RBI)')
-    #   );
+    $values->{'ClassDuration'} = '1 hour' if ($values->{'ClassDuration'} =~ /^var/i);    
   }
+
+  # Date::Manip doesn't seem to like high week durations.
+  $values->{'ClassDuration'} = '140 days' if ($values->{'ClassDuration'} eq '20 weeks');
+  $values->{'ClassDuration'} = '30 minutes' if ($values->{'ClassDuration'} eq '1/2 Hour');
+  $values->{'ClassDuration'} =~ s/(hoiur|houtd|hr\.|hrs\.|hrs per day)/hours/;
+  $values->{'ClassDuration'} =~ s/ 2x.*//i;
+  $values->{'ClassDuration'} =~ s/\dk/4 hours/i;
+  $values->{'ClassDuration'} =~ s/overnight/12 hours/i;
+  $values->{'ClassDuration'} =~ s/mimutes/minutes/i;
+  $values->{'ClassDuration'} =~ s/9:30.*-8.*/11 hours/i;
+  $values->{'ClassDuration'} =~ s/6pm-8am/14 hours/i;
 
   my $startDate = get_start_date($values);
 
@@ -437,10 +437,6 @@ sub clean_program_values {
       $startDate && 
       grep { $dow eq $_ } qw( mon tue wed thu fri sat sun )
     ) {
-
-    # Date::Manip doesn't seem to like high week durations.
-    $values->{'ClassDuration'} = '140 days' if ($values->{'ClassDuration'} eq '20 weeks');
-    $values->{'ClassDuration'} = '30 minutes' if ($values->{'ClassDuration'} eq '1/2 Hour');
 
     $values->{'StartDateTime'} = UnixDate(
       Date_GetNext(
@@ -536,6 +532,8 @@ sub clean_all_values {
 
   $values->{'ShortPayProcCode'} = 'REJECT' unless ($values->{'ShortPayProcCode'});
   $values->{'ClCccFlag'} = 'Y' unless ($values->{'ClCccFlag'});
+
+  $values->{'ExpirationDate'} = $values->{'SessionEndDate'} || '';
 
   if ($values->{'StartDateTime'}) {
     $values->{'LastRegistrationDate'} = UnixDate(DateCalc($values->{'SessionStartDate'}, 
