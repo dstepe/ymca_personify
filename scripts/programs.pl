@@ -239,6 +239,10 @@ my $programTypeWorkbook = make_workbook('unmatched_program_type');
 my $programTypeWorksheet = make_worksheet($programTypeWorkbook, 
   ['Source', 'Program No', 'Type', 'Description', 'Session Start Date', 'Schedule']);
 
+my $noStartDateWorkbook = make_workbook('missing_start_date');
+my $noStartDateWorksheet = make_worksheet($noStartDateWorkbook, 
+  ['Program', 'Description', 'Session Start Date', 'Class Start Time', 'Duration', 'Week Days']);
+
 my $collector = {};
 print "Generating program files\n";
 our $partTracker = {};
@@ -253,6 +257,7 @@ $progress = Term::ProgressBar->new({ 'count' => scalar(@{$products}) });
 $count = 1;
 my $row = 1;
 my $programTypeRow = 1;
+my $missingStartRow = 1;
 foreach my $program (@{$products}) {
   $progress->update($count++);
 
@@ -279,6 +284,17 @@ foreach my $program (@{$products}) {
   }
 
   next if (skip_program($program->{'ProgramDescription'}));
+  
+  unless ($program->{'StartDateTime'}) {
+    write_record($noStartDateWorksheet, $missingStartRow++, [
+      $program->{'ProgramType'} || '',
+      $program->{'ProgramDescription'} || '',
+      $program->{'SessionStartDate'} || '',
+      $program->{'ClassStartTime'} || '',
+      $program->{'ClassDuration'} || '',
+      $program->{'WeekDays'} || '',
+    ]);
+  }
   
   my $description = $program->{'ProgramDescription'};
   my $summary = $program->{'Summary'};
@@ -400,6 +416,7 @@ sub clean_program_values {
 
     # Date::Manip doesn't seem to like high week durations.
     $values->{'ClassDuration'} = '140 days' if ($values->{'ClassDuration'} eq '20 weeks');
+    $values->{'ClassDuration'} = '30 minutes' if ($values->{'ClassDuration'} eq '1/2 Hour');
 
     $values->{'StartDateTime'} = UnixDate(
       Date_GetNext(
