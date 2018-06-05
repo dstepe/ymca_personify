@@ -399,6 +399,8 @@ sub clean_program_values {
 
   $values->{'ClCccFlag'} = 'N';
 
+  $values->{'SubsidyGl'} = '' if ($values->{'ScholarshipGlAccount'} eq 'NA');
+
   $values->{'Summary'} = $values->{'ItemDescription'};
 
   $values->{'ListPrice'} = $values->{'NonMemberPrice'};
@@ -501,7 +503,7 @@ sub clean_camp_values {
   my $values = shift;
 
   $values->{'Source'} = 'camp';
-  
+
   $values->{'ListPrice'} = $values->{'FullMemberPrice'};
 
   $values->{'ShortPayProcCode'} = 'AR';
@@ -553,16 +555,34 @@ sub clean_all_values {
   $values->{'MinAgeMonths'} = 0;
   $values->{'MaxAgeMonths'} = 0;
 
+  $values->{'GlAccount'} = format_gl_account($values->{'GlAccount'});
+  $values->{'SubsidyGl'} = format_gl_account($values->{'SubsidyGl'});
+  ($values->{'PromoDiscountAccount'} = $values->{'GlAccount'}) =~ s/\d{4}$/1396/;
+  # Fixed
   $values->{'ArAccount'} = '1-10-10-19-6312';
   $values->{'PplAccount'} = '1-10-10-01-7360';
-  $values->{'WriteOffAccount'} = '1-10-60-05-1307';
-  $values->{'CancelAccount'} = '1-10-60-05-1307';
-  $values->{'DiscountAccount'} = '1-10-60-05-1396';
+
+  # Revenue
+  $values->{'WriteOffAccount'} = $values->{'GlAccount'};
+  $values->{'CancelAccount'} = $values->{'GlAccount'};
+  
+  # Promo discount
+  $values->{'DiscountAccount'} = $values->{'PromoDiscountAccount'};
+  
+  # Fixed
   $values->{'DefDiscountAccount'} = '1-10-10-01-7431';
-  $values->{'AgencyDiscountAccount'} = '1-10-60-05-1396';
+
+  # Promo discount
+  $values->{'AgencyDiscountAccount'} = $values->{'PromoDiscountAccount'};
+
+  # Fixed
   $values->{'AgencyDefDiscountAccount'} = '1-10-10-01-7431';
-  $values->{'RevenueAccount'} = '1-10-60-05-1307';
-  $values->{'DeferredAccount'} = '1-10-10-19-7430';
+
+  # Revenue
+  $values->{'RevenueAccount'} = $values->{'GlAccount'};
+
+  # Fixed
+  $values->{'DeferredAccount'} = '1-10-10-01-7431';
 
   if (exists($values->{'Schedule'})) {
     if (grep { $values->{'Schedule'} =~ /$_/i } ('mon-fri', 'mon - fri', 'm-f', 'daily', 'weekly')) {
@@ -595,6 +615,14 @@ sub clean_all_values {
   }
 
   return $values;
+}
+
+sub format_gl_account {
+  my $account = shift;
+
+  return '' unless ($account && $account =~ /(\d{2})-(\d{2})(\d{2})-(\d{4})/);
+
+  return join('-', '1', $1, $2, $3, $4);
 }
 
 sub map_program_descriptions {
