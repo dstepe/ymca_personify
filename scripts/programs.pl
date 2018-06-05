@@ -373,6 +373,8 @@ sub get_product_details {
   
   $productDetails->{'ProductCode'} = join('_', @codeParts);
 
+  $productDetails->{'DepartmentSubClass'} .= '_';
+
   return $productDetails;
 }
 

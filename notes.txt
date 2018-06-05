@@ -1,6 +1,6 @@
 Check how expiration date, last registration and last refund dates should be handled
 
-Determine start date/time for all programs
+- Determine start date/time for all programs
 
 - CL_CCC_FLAG should always be N for programs?
   Camps are child care and should be Y.
@@ -11,3 +11,14 @@ Determine start date/time for all programs
 
 - Orders details are listed without a product code
   Orders with missing product codes were not being skipped
+
+Last segment of Product Code is wrong, needs to use mapping
+
+Sub department needs to include trailing '_'
+
+Skip with programs with no start date
+
+End date calculation needs to include more than time
+  Last date of occurrence and last day of week
+
+Get GL accounts from program data extract
