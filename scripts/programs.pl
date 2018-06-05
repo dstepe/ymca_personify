@@ -297,6 +297,8 @@ foreach my $program (@{$products}) {
       $program->{'ClassDuration'} || '',
       $program->{'WeekDays'} || '',
     ]);
+
+    next;
   }
   
   my $description = $program->{'ProgramDescription'};

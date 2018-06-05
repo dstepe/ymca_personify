@@ -14,11 +14,13 @@ Check how expiration date, last registration and last refund dates should be han
 
 Last segment of Product Code is wrong, needs to use mapping
 
-Sub department needs to include trailing '_'
+- Sub department needs to include trailing '_'
 
-Skip with programs with no start date
+- Skip with programs with no start date
 
 End date calculation needs to include more than time
   Last date of occurrence and last day of week
 
 Get GL accounts from program data extract
+
+Camp product codes need to increment by date
