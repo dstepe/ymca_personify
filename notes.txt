@@ -1,4 +1,4 @@
-Check how expiration date, last registration and last refund dates should be handled
+- Check how expiration date, last registration and last refund dates should be handled
 
 - Determine start date/time for all programs
 
@@ -12,7 +12,7 @@ Check how expiration date, last registration and last refund dates should be han
 - Orders details are listed without a product code
   Orders with missing product codes were not being skipped
 
-Last segment of Product Code is wrong, needs to use mapping
+- Last segment of Product Code is wrong, needs to use mapping
 
 - Sub department needs to include trailing '_'
 

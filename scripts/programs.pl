@@ -347,6 +347,7 @@ sub get_product_details {
     'ProductCode' => '',
     'Department' => '',
     'DepartmentSubClass' => '',
+    'Season' => '',
   };
 
   return $productDetails unless (
@@ -358,6 +359,7 @@ sub get_product_details {
   
   $productDetails->{'Department'} = $codeInfo->{'ProductClass'};
   $productDetails->{'DepartmentSubClass'} = $codeInfo->{'SubClass'};
+  $productDetails->{'Season'} = $codeInfo->{'Season'};
 
   my $increment = get_program_increment(
     $program->{'BranchCode'}, 
@@ -371,26 +373,13 @@ sub get_product_details {
   push(@codeParts, $productDetails->{'DepartmentSubClass'});
   push(@codeParts, sprintf('%02s', $increment));
   push(@codeParts, UnixDate($program->{'SessionStartDate'}, '%m%d%y'));
-  push(@codeParts, get_program_season($program->{'ProgramType'}));
+  push(@codeParts, $productDetails->{'Season'});
   
   $productDetails->{'ProductCode'} = join('_', @codeParts);
 
   $productDetails->{'DepartmentSubClass'} .= '_';
 
   return $productDetails;
-}
-
-sub get_program_season {
-  my $programType = shift;
-
-  my $season = 'AYR';
-
-  $programType =~ s/^2018 //;
-
-  $season = 'SPR' if ($programType =~ /^Spring/);
-  $season = 'SM1' if ($programType =~ /^Summer 1/);
-
-  return $season;
 }
 
 sub get_program_increment {
