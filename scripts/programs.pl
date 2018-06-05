@@ -63,7 +63,7 @@ my $productColumnMap = {
   'WAIVE_SHIPPING_FLAG'                      => { 'type' => 'static', 'source' => 'Y' },
   'PRICE_CURRENCY_CODE'                      => { 'type' => 'static', 'source' => 'USD' },
   'PRICE_BEGIN_DATE'                         => { 'type' => 'record', 'source' => 'AvailableDate' },
-  'PRICE'                                    => { 'type' => 'record', 'source' => 'NonMemberPrice' },
+  'PRICE'                                    => { 'type' => 'record', 'source' => 'ListPrice' },
   'CL_VARIABLE_PART_SCHEDULE_FLAG'           => { 'type' => 'static', 'source' => 'N' },
   'MIN_PRICE'                                => { 'type' => 'static', 'source' => '0' },
   'MAX_PRICE'                                => { 'type' => 'static', 'source' => '0' },
@@ -408,6 +408,8 @@ sub clean_program_values {
 
   $values->{'Summary'} = $values->{'ItemDescription'};
 
+  $values->{'ListPrice'} = $values->{'NonMemberPrice'};
+
   $values->{'SessionStartDate'} =~ s/ .*$//;
   $values->{'SessionEndDate'} =~ s/ .*$//;
 
@@ -507,6 +509,8 @@ sub clean_camp_values {
 
   $values->{'Source'} = 'camp';
   
+  $values->{'ListPrice'} = $values->{'FullMemberPrice'};
+
   $values->{'ShortPayProcCode'} = 'AR';
 
   $values->{'Summary'} = $values->{'ClassSummary'};
@@ -541,7 +545,7 @@ sub clean_all_values {
     '+3 weeks'), '%Y-%m-%d') if ($values->{'StartDateTime'});
 
 
-  foreach my $key (qw( NonMemberPrice FullMemberPrice ProgramParticipantPrice)) {
+  foreach my $key (qw( ListPrice NonMemberPrice FullMemberPrice ProgramParticipantPrice)) {
     $values->{$key} =~ s/\$//;
   }
 
