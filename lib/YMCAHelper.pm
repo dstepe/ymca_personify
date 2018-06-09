@@ -9,6 +9,7 @@ use Text::Table;
 use Text::CSV_XS;
 use Term::ProgressBar;
 use DBI;
+use Date::Manip;
 
 our @ISA= qw( Exporter );
 
@@ -23,6 +24,7 @@ our @EXPORT_OK = qw(
   make_record
   lookup_id
   compare
+  by_program_start_date
   dump
   dd
   open_data_file
@@ -51,6 +53,7 @@ our @EXPORT = qw(
   make_record
   lookup_id
   compare
+  by_program_start_date
   dump
   dd
   open_data_file
@@ -209,6 +212,20 @@ sub compare {
   }
 
   print $table;
+}
+
+sub by_program_start_date {
+  my $a = shift;
+  my $b = shift;
+
+  return 0 unless ($a->{'StartDateTime'} && $b->{'StartDateTime'});
+  return 1 unless ($a->{'StartDateTime'});
+  return -1 unless ($b->{'StartDateTime'});
+
+  my $aStartDate = ParseDate($a->{'StartDateTime'});
+  my $bStartDate = ParseDate($b->{'StartDateTime'});
+
+  Date_Cmp($aStartDate, $bStartDate);
 }
 
 sub dump {

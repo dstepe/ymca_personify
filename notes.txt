@@ -20,7 +20,13 @@
 
 End date calculation needs to include more than time
   Last date of occurrence and last day of week
+  What times do camps start/end?
+  Overnight programs are input as 14 hours on FRI,SAT
 
-Get GL accounts from program data extract
+- Get GL accounts from program data extract
 
 Camp product codes need to increment by date
+  Can possibly use 'week ##' from session
+  Some camps are not in date order or have duplicate weeks
+    Seems to be Atrium
+  Do program product also increment this same way?

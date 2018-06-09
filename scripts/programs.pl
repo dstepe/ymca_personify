@@ -242,7 +242,12 @@ my $programTypeWorksheet = make_worksheet($programTypeWorkbook,
 my $noStartDateWorkbook = make_workbook('missing_start_date');
 my $noStartDateWorksheet = make_worksheet($noStartDateWorkbook, 
   ['Start', 'End', 'Program', 'Description', 'Summary', 'Session Start Date', 
-    'Class Start Time', 'Duration', 'Week Days']);
+    'Session End Date', 'Class Start Time', 'Duration', 'Week Days']);
+
+my $startEndDatesWorkbook = make_workbook('start_end_dates');
+my $startEndDatesWorksheet = make_worksheet($startEndDatesWorkbook, 
+  ['Product Code', 'Branch', 'Program', 'Description', 'Summary', 'Session Start Date', 
+    'Session End Date', 'Class Start Time', 'Duration', 'Week Days', 'Start', 'End']);
 
 my $collector = {};
 print "Generating program files\n";
@@ -258,8 +263,9 @@ $progress = Term::ProgressBar->new({ 'count' => scalar(@{$products}) });
 $count = 1;
 my $row = 1;
 my $programTypeRow = 1;
+my $startEndDatesRow = 1;
 my $missingStartRow = 1;
-foreach my $program (@{$products}) {
+foreach my $program (sort { by_program_start_date($a, $b) } @{$products}) {
   $progress->update($count++);
 
   $program->{'AvailableDate'} = $availableDate;
@@ -285,6 +291,21 @@ foreach my $program (@{$products}) {
 
   next if (skip_program($program->{'ProgramDescription'}));
   
+  write_record($startEndDatesWorksheet, $startEndDatesRow++, [
+    $program->{'ProductCode'} || '',
+    $program->{'BranchName'} || '',
+    $program->{'ProgramType'} || '',
+    $program->{'ProgramDescription'} || '',
+    $program->{'ItemDescription'} || $program->{'Session'} || '',
+    $program->{'SessionStartDate'} || '',
+    $program->{'SessionEndDate'} || '',
+    $program->{'ClassStartTime'} || '',
+    $program->{'ClassDuration'} || '',
+    $program->{'WeekDays'} || '',
+    $program->{'StartDateTime'} || '',
+    $program->{'EndDateTime'} || '',
+  ]);
+
   unless ($program->{'StartDateTime'} && $program->{'EndDateTime'}) {        
     write_record($noStartDateWorksheet, $missingStartRow++, [
       $program->{'StartDateTime'} || '',
@@ -293,6 +314,7 @@ foreach my $program (@{$products}) {
       $program->{'ProgramDescription'} || '',
       $program->{'ItemDescription'} || '',
       $program->{'SessionStartDate'} || '',
+      $program->{'SessionEndDate'} || '',
       $program->{'ClassStartTime'} || '',
       $program->{'ClassDuration'} || '',
       $program->{'WeekDays'} || '',
@@ -423,28 +445,48 @@ sub clean_program_values {
   $values->{'ClassDuration'} =~ s/mimutes/minutes/i;
   $values->{'ClassDuration'} =~ s/9:30.*-8.*/11 hours/i;
   $values->{'ClassDuration'} =~ s/6pm-8am/14 hours/i;
+  $values->{'ClassDuration'} =~ s/^(\d+)$/$1 hours/i;
+  $values->{'ClassDuration'} =~ s/^hour$/1 hour/i;
 
   my $startDate = get_start_date($values);
+  my $endDate = get_end_date($values);
 
-  my $dowIndicator = lc $values->{'WeekDays'};
-  $dowIndicator =~ s/^m-/mon-/i;
-  $dowIndicator =~ s/^t-/tue-/i;
-  my $dow = substr($dowIndicator, 0, 3);
-  if (
-      $startDate && 
-      grep { $dow eq $_ } qw( mon tue wed thu fri sat sun )
-    ) {
+  $values->{'WeekDays'} =~ s/(TBD|TBA|On your own|Schedule Weigh-in|Vaires|Varies)//i;
+  $values->{'WeekDays'} =~ s/M-R/MON,TUE,WED,THU/i;
+  $values->{'WeekDays'} =~ s/M-W-F/MON,WED,FRI/i;
+  $values->{'WeekDays'} =~ s/T-W-TH/TUE,WED,THU/i;
+  $values->{'WeekDays'} =~ s/(Every ?day|Daily|all days)/SUN,MON,TUE,WED,THU,FRI,SAT/i;
+  $values->{'WeekDays'} =~ s/(\/| & )/,/g;
 
+  if ($values->{'WeekDays'} && $values->{'WeekDays'} !~ /^(mon|tue|wed|thu|fri|sat|sun)/i &&
+      !(skip_program($values->{'ProgramDescription'}) || skip_cycle($values->{'ProgramType'}))) {
+    print "Can't translate $values->{'WeekDays'}\n";
+    exit;
+  }
+  my @daysOfWeek = split(',', lc $values->{'WeekDays'});
+
+  my $startDayOfWeek = '';
+  my $endDayOfWeek = '';
+  if (@daysOfWeek) {
+    $startDayOfWeek = $daysOfWeek[0];
+    $endDayOfWeek = $daysOfWeek[$#daysOfWeek];
+  }
+
+  if ($startDate && $startDayOfWeek) {
     $values->{'StartDateTime'} = UnixDate(
       Date_GetNext(
         $startDate . ' ' . $values->{'ClassStartTime'}, 
-        $dow, 
+        $startDayOfWeek, 
         1
       ), '%Y-%m-%d %r');
-    
-    $values->{'EndDateTime'} = UnixDate(DateCalc($values->{'StartDateTime'}, 
-      '+' . $values->{'ClassDuration'}), '%Y-%m-%d %r');
+  }
 
+  if ($endDate && $endDayOfWeek) {
+    my $lastDayOfWeek = UnixDate(
+      Date_GetPrev($endDate . ' ' . $values->{'ClassStartTime'}, $endDayOfWeek, 1), '%Y-%m-%d %r');
+
+    $values->{'EndDateTime'} = UnixDate(DateCalc($lastDayOfWeek, 
+      '+' . $values->{'ClassDuration'}), '%Y-%m-%d %r');
   }
 
   $values->{'ClMon'} = 'Y' if ($values->{'WeekDays'} =~ /Mon/i);
@@ -467,14 +509,30 @@ sub get_start_date {
 
   return $startDate unless ($startDate eq '1/1/2018');
 
-  # Look for the first "month" word and use it
+  # Look for the first "month" word in the summary and use it
   my @months = qw ( jan feb mar apr may jun jul aug sep oct nov dec);
-  $startDate =~ s/[\.\-]/ /g;
-  my @words = split(/ +/, lc $startDate);
+  my %monthNumbers = (
+    'jan' => 1,
+    'feb' => 2,
+    'mar' => 3,
+    'apr' => 4,
+    'may' => 5,
+    'jun' => 6,
+    'jul' => 7,
+    'aug' => 8,
+    'sep' => 9,
+    'oct' => 10,
+    'nov' => 11,
+    'dec' => 12,
+  );
+  
+  my $summary = clean_summary($values->{'Summary'});
+
+  my @words = split(/ +/, lc $summary);
   for (my $i = 0; $i < scalar(@words); $i++) {
     foreach my $clue (@months) {
-      if ($words[$i] =~ /^$clue/) {
-        my $month = $clue;
+      if ($words[$i] =~ /^$clue/i) {
+        my $month = $monthNumbers{$clue};
         my $day = '';
         if (exists($words[$i + 1]) && $words[$i + 1] =~ /\d+/) {
           $day = $words[$i + 1];
@@ -487,6 +545,77 @@ sub get_start_date {
   }
 
   return $startDate;
+}
+
+sub get_end_date {
+  my $values = shift;
+
+  my $endDate = $values->{'SessionEndDate'};
+
+  return $endDate unless ($endDate eq '12/31/2018');
+
+  # Look for the last "month" word in the summary and use it
+  my @months = qw ( jan feb mar apr may jun jul aug sep oct nov dec);
+  my %monthNumbers = (
+    'jan' => 1,
+    'feb' => 2,
+    'mar' => 3,
+    'apr' => 4,
+    'may' => 5,
+    'jun' => 6,
+    'jul' => 7,
+    'aug' => 8,
+    'sep' => 9,
+    'oct' => 10,
+    'nov' => 11,
+    'dec' => 12,
+  );
+  my %lastMonthDays = (
+    'jan' => 31,
+    'feb' => 28,
+    'mar' => 31,
+    'apr' => 30,
+    'may' => 31,
+    'jun' => 30,
+    'jul' => 31,
+    'aug' => 31,
+    'sep' => 30,
+    'oct' => 31,
+    'nov' => 30,
+    'dec' => 31,
+  );
+
+  my $summary = clean_summary($values->{'Summary'});
+
+  my @words = split(/ +/, lc $summary);
+  for (my $i = $#words; $i >= 0; $i--) {
+    foreach my $clue (@months) {
+      if ($words[$i] =~ /^$clue/i) {
+        my $month = $monthNumbers{$clue};
+        my $day = '';
+        if (exists($words[$i + 1]) && $words[$i + 1] =~ /\d+/) {
+          $day = $words[$i + 1];
+        } else {
+          $day = $lastMonthDays{$clue};
+        }
+        return $month . '/' . $day . '/2018';        
+      }
+    }
+  }
+
+  return $endDate;
+}
+
+sub clean_summary {
+  my $summary = shift;
+
+  $summary =~ s/20(17|18)//g;
+  $summary =~ s/6 ?& up//;
+  $summary =~ s/[\.\-:,]/ /g;
+  $summary =~ s/(\d*)(th|rd|nd|st)/$1/g;
+  $summary =~ s/\d*(am|pm)//g;
+
+  return $summary;
 }
 
 sub clean_childcare_values {
@@ -510,9 +639,9 @@ sub clean_camp_values {
 
   $values->{'Summary'} = $values->{'ClassSummary'};
 
-  my $startDate = ParseDate($values->{'SessionStartDate'});
+  my $startDate = ParseDate($values->{'SessionStartDate'} . ' 9:00am');
   $values->{'StartDateTime'} = UnixDate($startDate, '%Y-%m-%d %r');
-  $values->{'EndDateTime'} = UnixDate(DateCalc($startDate, '+5 days'), '%Y-%m-%d');
+  $values->{'EndDateTime'} = UnixDate(DateCalc($startDate, '+5 days 8 hours'), '%Y-%m-%d %r');
 
   $values->{'MappedProgramDescription'} = map_camp_descriptions($values);
 
