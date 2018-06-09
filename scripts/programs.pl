@@ -249,6 +249,9 @@ my $startEndDatesWorksheet = make_worksheet($startEndDatesWorkbook,
   ['Product Code', 'Branch', 'Program', 'Description', 'Summary', 'Session Start Date', 
     'Session End Date', 'Class Start Time', 'Duration', 'Week Days', 'Start', 'End']);
 
+my $productCodes = {};
+my $productsByCode = {};
+
 my $collector = {};
 print "Generating program files\n";
 our $partTracker = {};
@@ -302,8 +305,8 @@ foreach my $program (sort { by_program_start_date($a, $b) } @{$products}) {
     $program->{'ClassStartTime'} || '',
     $program->{'ClassDuration'} || '',
     $program->{'WeekDays'} || '',
-    $program->{'StartDateTime'} || '',
-    $program->{'EndDateTime'} || '',
+    $program->{'StartDateTime'} ? UnixDate($program->{'StartDateTime'}, '%a, %d %b %Y %i:%M:%S %p') : '',
+    $program->{'EndDateTime'} ? UnixDate($program->{'EndDateTime'}, '%a, %d %b %Y %i:%M:%S %p') : '',
   ]);
 
   unless ($program->{'StartDateTime'} && $program->{'EndDateTime'}) {        
@@ -323,22 +326,13 @@ foreach my $program (sort { by_program_start_date($a, $b) } @{$products}) {
     next;
   }
   
+  $productCodes->{$program->{'ProductCode'}}++;
+  $productsByCode->{$program->{'ProductCode'}} = []
+    unless (exists($productsByCode->{$program->{'ProductCode'}}));
+  push(@{$productsByCode->{$program->{'ProductCode'}}}, $program);
+
   my $description = $program->{'ProgramDescription'};
   my $summary = $program->{'Summary'};
-
-  # Something reduces spaces in the order data, so make it consistent
-  # $description =~ s/ +/ /g;
-  # $summary =~ s/ +/ /g;
-
-  # Deal with Excel munging date looking descriptions
-  # $summary = 'Jan-18' if ($summary eq 'Jan 2018');
-  # $summary = 'Feb-18' if ($summary eq 'Feb 2018');
-  # $summary = 'Mar-18' if ($summary eq 'Mar 2018');
-  # $summary = 'Apr-18' if ($summary eq 'Apr 2018');
-  # $summary = 'May-18' if ($summary eq 'May 2018');
-  # $summary = 'Jun-18' if ($summary eq 'Jun 2018');
-  # $summary = 'Jul-18' if ($summary eq 'Jul 2018');
-  # $summary = 'Aug-18' if ($summary eq 'Aug 2018');
 
   $dbh->do(q{
     insert into products (product_code, branch, type, description, summary, session)
@@ -359,6 +353,33 @@ foreach my $program (sort { by_program_start_date($a, $b) } @{$products}) {
 }
 
 dump($collector) if (keys %{$collector});
+
+my $duplicateProductCodeWorkbook = make_workbook('duplicate_product_code');
+my $duplicateProductCodeWorksheet = make_worksheet($duplicateProductCodeWorkbook, 
+  ['Product Code', 'Branch', 'Program', 'Description', 'Summary', 'Session Start Date', 
+    'Session End Date', 'Class Start Time', 'Duration', 'Week Days', 'Start', 'End']);
+my $duplicateProductCodeRow = 1;
+
+foreach my $productCode (keys %{$productCodes}) {
+  next unless ($productCodes->{$productCode} > 1);
+
+  foreach my $program (@{$productsByCode->{$productCode}}) {
+    write_record($duplicateProductCodeWorksheet, $duplicateProductCodeRow++, [
+      $program->{'ProductCode'} || '',
+      $program->{'BranchName'} || '',
+      $program->{'ProgramType'} || '',
+      $program->{'ProgramDescription'} || '',
+      $program->{'ItemDescription'} || $program->{'Session'} || '',
+      $program->{'SessionStartDate'} || '',
+      $program->{'SessionEndDate'} || '',
+      $program->{'ClassStartTime'} || '',
+      $program->{'ClassDuration'} || '',
+      $program->{'WeekDays'} || '',
+      $program->{'StartDateTime'} || '',
+      $program->{'EndDateTime'} || '',
+    ]);
+  }
+}
 
 sub get_product_details {
   my $program = shift;
@@ -386,7 +407,8 @@ sub get_product_details {
   my $increment = get_program_increment(
     $program->{'BranchCode'}, 
     $productDetails->{'Department'},
-    $productDetails->{'DepartmentSubClass'}
+    $productDetails->{'DepartmentSubClass'},
+    $program->{'Session'}
   );
 
   my @codeParts;
@@ -408,8 +430,13 @@ sub get_program_increment {
   my $branchCode = shift;
   my $department = shift || 'un';
   my $departmentSubCLass = shift || 'un';
+  my $session = shift || '';
 
   our $partTracker;
+
+  if ($session =~ /week (\d*)/i) {
+    return $1;
+  }
 
   return ++$partTracker->{$branchCode}{$department}{$departmentSubCLass};
 }
