@@ -129,7 +129,7 @@ process_data_file(
     $record = make_record($values, [member_order_fields()], make_column_map([member_order_fields()]));
     $csv->print($orderMaster, $record);
   }
-);
+) if (0);
 
 close($orderMaster);
 
@@ -204,7 +204,7 @@ process_data_file(
   },
   undef,
   $orderHeaderMap
-);
+) if (0);
 
 $orderHeaderMap = {
   'Branch' => 'BranchName',
@@ -273,10 +273,90 @@ foreach my $branchFile (qw( Atrium EastButler Fairfield Fitton Middletown )) {
     },
     undef,
     $orderHeaderMap
-  );
+  ) if (0);
 }
 
+$orderHeaderMap = {
+  'memberid' => 'MemberId',
+  'branch Name' => 'BranchName',
+  'Billing Frequency' => 'BillingFrequency',
+  'Campaign Balance' => 'CampaignBalance',
+  'Campaign Description' => 'ItemDescription',
+  'Campaign Pledge' => 'CampaignPledge',
+  'Campaign Pledge Status' => 'CampaignPledgeStatus',
+  'Corporation Name' => 'CorporationName',
+  'Fair Market Value' => 'FairMarketValue',
+  'Pledge Date' => 'PledgeDate',
+  'Pledge ID' => 'PledgeID',
+  'Pledge Next Bill Date' => 'PledgeNextBillDate',
+  'Pledge Type' => 'PledgeType',
+  'Pledge Type Frequency' => 'PledgeTypeFrequency',
+  'Receipt Number' => 'ReceiptNumber',
+  'Tracking Number' => 'TrackingNumber',
+  'Volunteer Goal' => 'VolunteerGoal',
+  'Volunteer Name' => 'VolunteerName',
+};
+
 close($programMaster);
+
+open(my $donationMaster, '>', 'data/donation_orders.csv')
+  or die "Couldn't open data/donation_orders.csv: $!";
+$csv->print($donationMaster, [donation_order_fields()]);
+
+process_data_file(
+  'data/CampaignPledges.csv',
+  sub {
+    my $values = shift;
+
+    $values->{'OrderNo'} = $orderNo++;
+
+    $values->{'Session'} = '';
+    $values->{'ProgramStartDate'} = '';
+    $values->{'ProgramEndDate'} = '';
+    $values->{'ProgramFee'} = '';
+    $values->{'FeePaid'} = $values->{'CampaignPledge'};
+    $values->{'Balance'} = $values->{'CampaignBalance'};
+    $values->{'DatePaid'} = UnixDate($values->{'PledgeDate'}, '%Y-%m-%d');
+    $values->{'Cycle'} = '';
+    $values->{'ProductCode'} = '';
+
+    $values->{'PerMemberId'} = lookup_id($values->{'MemberId'});
+    $values->{'PerBillableMemberId'} = $values->{'PerMemberId'};
+
+    $values->{'OrderDate'} = $values->{'PledgeDate'};
+    $values->{'StatusDate'} = $values->{'PledgeDate'};
+
+    $values->{'FeePaid'} =~ s/\$//;
+    $values->{'Balance'} =~ s/\$//;
+
+    # $values->{'ProductCode'} = lookup_product_code('program', $values);
+
+    # unless ($values->{'ProductCode'}) {
+    #   my $skipped = skip_program($values->{'ProgramDescription'});
+    #   write_record($noProductCodeWorksheet, $noProductRow++, [
+    #     'program',
+    #     $values->{'BranchName'},
+    #     $values->{'Cycle'},
+    #     $values->{'ProgramDescription'},
+    #     $values->{'ItemDescription'},
+    #     '',
+    #     $skipped ? 'Skipped' : ''
+    #   ]);
+
+    #   return;    
+    # }
+
+    my $record = make_record($values, \@allColumns, $columnMap);
+    write_record($worksheet, $order++, $record);
+
+    $record = make_record($values, [donation_order_fields()], make_column_map([donation_order_fields()]));
+    $csv->print($donationMaster, $record);
+  },
+  undef,
+  $orderHeaderMap
+);
+
+close($donationMaster);
 
 sub lookup_product_code {
   my $type = shift;

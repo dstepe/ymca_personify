@@ -36,6 +36,7 @@ our @EXPORT_OK = qw(
   billable_member
   member_order_fields
   program_order_fields
+  donation_order_fields
   branch_name_map
   skip_program
   skip_cycle
@@ -64,13 +65,14 @@ our @EXPORT = qw(
   billable_member
   member_order_fields
   program_order_fields
+  donation_order_fields
   branch_name_map
   skip_program
   skip_cycle
   is_company
 );
 
-my $csv = Text::CSV_XS->new ({ auto_diag => 1 });
+my $csv = Text::CSV_XS->new ({ binary => 1 });
   
 my $dbh = DBI->connect('dbi:SQLite:dbname=db/ymca.db','','');
 
@@ -488,6 +490,26 @@ sub program_order_fields {
     DatePaid
     ItemDescription
     Cycle
+    ProductCode
+  ));
+
+  return @orderFields;
+}
+
+sub donation_order_fields {
+
+  my @orderFields = common_order_fields();
+
+  push(@orderFields, qw(
+    CampaignBalance
+    CampaignPledge
+    CampaignPledgeStatus
+    PledgeType
+    PledgeTypeFrequency
+    ReceiptNumber
+    FeePaid
+    Balance
+    DatePaid
     ProductCode
   ));
 

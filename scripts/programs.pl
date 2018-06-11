@@ -1019,7 +1019,7 @@ sub childCareHeaderMap {
 
 sub campHeaderMap {
   return {
-    "\x{feff}Branch" => 'BranchName',
+    "Branch" => 'BranchName',
     'Class Max Age' => 'MaxAgeYears',
     'Class Min Age' => 'MinAgeYears',
     'Full Members' => 'FullMemberPrice',

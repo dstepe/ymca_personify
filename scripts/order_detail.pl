@@ -44,6 +44,7 @@ my $columnMap = {
   'BACK_ISSUE_FLAG'                    => { 'type' => 'static', 'source' => 'Y' },
   'INITIAL_BEGIN_DATE'                 => { 'type' => 'record', 'source' => 'JoinDate' },
   'RETURNED_QTY'                       => { 'type' => 'static', 'source' => '0' },
+  'PAY_FREQUENCY_CODE'                 => { 'type' => 'record', 'source' => 'PayFrequencyCode' },
   'PAYOR_CUSTOMER_ID'                  => { 'type' => 'record', 'source' => 'PerBillableMemberId' },
   'RECEIPT_TYPE'                       => { 'type' => 'static', 'source' => 'CASH' },
   'RECEIPT_CURRENCY_CODE'              => { 'type' => 'static', 'source' => 'USD' },
@@ -66,7 +67,7 @@ my $columnMap = {
   'LINE_COMPLETE_FLAG'                 => { 'type' => 'static', 'source' => 'N' },
   'RENEW_TO_CC_FLAG'                   => { 'type' => 'static', 'source' => 'N' },
   'RENEWAL_CREATED_FLAG'               => { 'type' => 'static', 'source' => 'N' },
-  'REQUIRES_DISCOUNT_CALCULATION_FLAG' => { 'type' => 'static', 'source' => 'Y' },
+  'REQUIRES_DISCOUNT_CALCULATION_FLAG' => { 'type' => 'record', 'source' => 'RequireDiscountCalc' },
   'TOTAL_DEFERRED_TAX'                 => { 'type' => 'static', 'source' => '0' },
   'TOTAL_DEPOSIT_TAX'                  => { 'type' => 'static', 'source' => '0' },
 };
@@ -138,6 +139,8 @@ process_data_file(
     $values->{'TaxableFlag'} = 'Y';
     $values->{'TaxCategoryCode'} = 'SALES';
     $values->{'AttendanceFlag'} = 'N';
+    $values->{'PayFrequencyCode'} = '';
+    $values->{'RequireDiscountCalc'} = 'Y';
 
     $values->{'ShipCustomerId'} = $values->{'PerBillableMemberId'};
 
@@ -242,11 +245,51 @@ process_data_file(
     $values->{'TaxPaidAmount'} = 0;
     $values->{'AttendanceFlag'} = 'Y';
     $values->{'JoinDate'} = '';
+    $values->{'PayFrequencyCode'} = '';
+    $values->{'RequireDiscountCalc'} = 'Y';
     
     $values->{'ShipCustomerId'} = $values->{'PerMemberId'};
 
     $values->{'BeginDate'} = UnixDate($values->{'ProgramStartDate'}, '%Y-%m-%d');
     $values->{'EndDate'} = UnixDate($values->{'ProgramEndDate'}, '%Y-%m-%d');
+
+    $values->{'TrxInvoiceId'} = $values->{'ReceiptNumber'};
+
+    $values->{'TotalAmount'} = $values->{'FeePaid'};
+
+    $values->{'ParentProductCode'} = $values->{'ProductCode'};
+
+    write_record(
+      $worksheet,
+      $row++,
+      make_record($values, \@allColumns, $columnMap)
+    );
+  }
+);
+
+process_data_file(
+  'data/donation_orders.csv',
+  sub {
+    my $values = shift;
+    # dd($values);
+
+    $values->{'SubSystem'} = 'FND';
+    $values->{'RateCode'} = 'STD';
+    $values->{'MarketCode'} = '';
+    $values->{'TaxableFlag'} = 'N';
+    $values->{'TaxCategoryCode'} = '';
+    $values->{'DiscountAmount'} = 0;
+    $values->{'DiscountCode'} = '';
+    $values->{'TaxPaidAmount'} = 0;
+    $values->{'AttendanceFlag'} = 'Y';
+    $values->{'JoinDate'} = '';
+    $values->{'PayFrequencyCode'} = 'IMMEDIATE';
+    $values->{'RequireDiscountCalc'} = 'N';
+    
+    $values->{'ShipCustomerId'} = $values->{'PerMemberId'};
+
+    $values->{'BeginDate'} = '';
+    $values->{'EndDate'} = '';
 
     $values->{'TrxInvoiceId'} = $values->{'ReceiptNumber'};
 
