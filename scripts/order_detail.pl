@@ -12,6 +12,8 @@ use Excel::Writer::XLSX;
 use Date::Manip;
 use Text::CSV;
 use Term::ProgressBar;
+use MIME::Base64;
+use Encode;
 
 my $templateName = 'DCT_ORDER_DETAIL-32358';
 
@@ -30,7 +32,7 @@ my $columnMap = {
   'LINE_STATUS_CODE'                   => { 'type' => 'static', 'source' => 'A' },
   'LINE_STATUS_DATE'                   => { 'type' => 'record', 'source' => 'OrderDate' },
   'FULFILL_STATUS_CODE'                => { 'type' => 'static', 'source' => 'A' },
-  'FULFILL_STATUS_DATE'                => { 'type' => 'record', 'source' => 'OrderDate' },
+  'FULFILL_STATUS_DATE'                => { 'type' => 'record', 'source' => 'FullfillStatusDate' },
   'RECOGNITION_STATUS_CODE'            => { 'type' => 'static', 'source' => 'C' },
   'RATE_STRUCTURE'                     => { 'type' => 'static', 'source' => 'LIST' },
   'RATE_CODE'                          => { 'type' => 'record', 'source' => 'RateCode' },
@@ -41,8 +43,9 @@ my $columnMap = {
   'TOTAL_AMOUNT'                       => { 'type' => 'record', 'source' => 'TotalAmount' },
   'CYCLE_BEGIN_DATE'                   => { 'type' => 'record', 'source' => 'BeginDate' },
   'CYCLE_END_DATE'                     => { 'type' => 'record', 'source' => 'EndDate' },
-  'BACK_ISSUE_FLAG'                    => { 'type' => 'static', 'source' => 'Y' },
+  'BACK_ISSUE_FLAG'                    => { 'type' => 'record', 'source' => 'BackIssueFlag' },
   'INITIAL_BEGIN_DATE'                 => { 'type' => 'record', 'source' => 'JoinDate' },
+  'DUE_DATE'                           => { 'type' => 'record', 'source' => 'DueDate' },
   'RETURNED_QTY'                       => { 'type' => 'static', 'source' => '0' },
   'PAY_FREQUENCY_CODE'                 => { 'type' => 'record', 'source' => 'PayFrequencyCode' },
   'PAYOR_CUSTOMER_ID'                  => { 'type' => 'record', 'source' => 'PerBillableMemberId' },
@@ -54,13 +57,18 @@ my $columnMap = {
   'RECEIPT_STATUS_CODE'                => { 'type' => 'static', 'source' => 'A' },
   'RECEIPT_STATUS_DATE'                => { 'type' => 'record', 'source' => 'OrderDate' },
   'CL_LATE_FEE_FLAG'                   => { 'type' => 'static', 'source' => 'N' },
+  'PRICING_CURRENCY_CODE'              => { 'type' => 'record', 'source' => 'PricingDiscountCode' },
   'MANUAL_DISCOUNT_FLAG'               => { 'type' => 'static', 'source' => 'N' },
   'DISCOUNT_CODE'                      => { 'type' => 'record', 'source' => 'DiscountCode' },
   'ACTUAL_DISCOUNT_AMOUNT'             => { 'type' => 'record', 'source' => 'DiscountAmount' },
   'ACTUAL_SHIP_AMOUNT'                 => { 'type' => 'static', 'source' => '0' },
   'ACTUAL_TAX_AMOUNT'                  => { 'type' => 'record', 'source' => 'TaxPaidAmount' },
   'MARKET_CODE'                        => { 'type' => 'record', 'source' => 'MarketCode' },
-  'COMMENTS_ON_INVOICE_FLAG'           => { 'type' => 'static', 'source' => 'N' },
+  'CAMPAIGN'                           => { 'type' => 'record', 'source' => 'Campaign' },
+  'FUND'                               => { 'type' => 'record', 'source' => 'Fund' },
+  'APPEAL'                             => { 'type' => 'record', 'source' => 'Appeal' },
+  'COMMENTS_ON_INVOICE_FLAG'           => { 'type' => 'record', 'source' => 'CommentsOnInvoice' },
+  'DESCRIPTION'                        => { 'type' => 'record', 'source' => 'InvoiceDescription' },
   'AUTO_PAY_METHOD_CODE'               => { 'type' => 'static', 'source' => 'NONE' },
   'ATTENDANCE_FLAG'                    => { 'type' => 'record', 'source' => 'AttendanceFlag' },
   'BLOCK_SALES_TAX_FLAG'               => { 'type' => 'static', 'source' => 'N' },
@@ -141,6 +149,14 @@ process_data_file(
     $values->{'AttendanceFlag'} = 'N';
     $values->{'PayFrequencyCode'} = '';
     $values->{'RequireDiscountCalc'} = 'Y';
+    $values->{'BackIssueFlag'} = 'Y';
+    $values->{'DueDate'} = '';
+    $values->{'PricingDiscountCode'} = '';
+    $values->{'Campaign'} = '';
+    $values->{'Fund'} = '';
+    $values->{'Appeal'} = '';
+    $values->{'CommentsOnInvoice'} = '';
+    $values->{'InvoiceDescription'} = '';
 
     $values->{'ShipCustomerId'} = $values->{'PerBillableMemberId'};
 
@@ -152,6 +168,8 @@ process_data_file(
     if (exists($taxRates->{$values->{'MembershipBranch'}})) {
       $taxRate = $taxRates->{$values->{'MembershipBranch'}};
     }
+
+    $values->{'FullfillStatusDate'} = $values->{'OrderDate'};
 
     my $orderDate = ParseDate($values->{'OrderDate'});
     $values->{'BeginDate'} = UnixDate($orderDate, '%Y-%m-%d');
@@ -247,6 +265,14 @@ process_data_file(
     $values->{'JoinDate'} = '';
     $values->{'PayFrequencyCode'} = '';
     $values->{'RequireDiscountCalc'} = 'Y';
+    $values->{'BackIssueFlag'} = 'Y';
+    $values->{'DueDate'} = '';
+    $values->{'PricingDiscountCode'} = '';
+    $values->{'Campaign'} = '';
+    $values->{'Fund'} = '';
+    $values->{'Appeal'} = '';
+    $values->{'CommentsOnInvoice'} = '';
+    $values->{'InvoiceDescription'} = '';
     
     $values->{'ShipCustomerId'} = $values->{'PerMemberId'};
 
@@ -267,6 +293,8 @@ process_data_file(
   }
 );
 
+my $today = ParseDate('today');
+
 process_data_file(
   'data/donation_orders.csv',
   sub {
@@ -281,15 +309,33 @@ process_data_file(
     $values->{'DiscountAmount'} = 0;
     $values->{'DiscountCode'} = '';
     $values->{'TaxPaidAmount'} = 0;
-    $values->{'AttendanceFlag'} = 'Y';
+    $values->{'AttendanceFlag'} = 'N';
     $values->{'JoinDate'} = '';
     $values->{'PayFrequencyCode'} = 'IMMEDIATE';
     $values->{'RequireDiscountCalc'} = 'N';
+    $values->{'BackIssueFlag'} = '';
+    $values->{'PricingDiscountCode'} = 'USD';
+    $values->{'Campaign'} = '';
+    $values->{'Fund'} = '';
+    $values->{'Appeal'} = '';
+    $values->{'InvoiceDescription'} = '';
     
+    $values->{'FullfillStatusDate'} = '';
+
+    $values->{'Comments'} = decode_base64($values->{'Comments'});
+    $values->{'CommentsOnInvoice'} = 'N';
+    $values->{'CommentsOnInvoice'} = 'Y' if ($values->{'Comments'});
+
     $values->{'ShipCustomerId'} = $values->{'PerMemberId'};
 
     $values->{'BeginDate'} = '';
     $values->{'EndDate'} = '';
+
+    $values->{'DueDate'} = '';
+    my $nextBillDate = ParseDate($values->{'PledgeNextBillDate'});
+    if (Date_Cmp($today, $nextBillDate) <= 0) {
+      $values->{'DueDate'} = UnixDate($nextBillDate, '%Y-%m-%d');
+    }
 
     $values->{'TrxInvoiceId'} = $values->{'ReceiptNumber'};
 

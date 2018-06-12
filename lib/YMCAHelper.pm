@@ -506,11 +506,13 @@ sub donation_order_fields {
     CampaignPledgeStatus
     PledgeType
     PledgeTypeFrequency
+    PledgeNextBillDate
     ReceiptNumber
     FeePaid
     Balance
     DatePaid
     ProductCode
+    Comments
   ));
 
   return @orderFields;

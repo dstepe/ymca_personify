@@ -12,6 +12,8 @@ use Excel::Writer::XLSX;
 use Date::Manip;
 use Text::CSV_XS;
 use Term::ProgressBar;
+use MIME::Base64;
+use Encode;
 
 my $templateName = 'DCT_ORDER_MASTER-42939';
 
@@ -328,6 +330,10 @@ process_data_file(
 
     $values->{'FeePaid'} =~ s/\$//;
     $values->{'Balance'} =~ s/\$//;
+
+    $values->{'Comments'} =~ s/^\s+//;
+    $values->{'Comments'} =~ s/\s+$//;
+    $values->{'Comments'} = decode_utf8(encode_base64($values->{'Comments'}));
 
     # $values->{'ProductCode'} = lookup_product_code('program', $values);
 
