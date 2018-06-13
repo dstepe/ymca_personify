@@ -414,6 +414,12 @@ my $currentDate = UnixDate(ParseDate('today'), '%Y-%m-%d');
 print "Generating customer files\n";
 $progress = Term::ProgressBar->new({ 'count' => scalar(keys %{$members}) });
 $count = 1;
+
+my $customerProblemsWorkbook = make_workbook('customer_problems');
+my $customerProblemsWorksheet = make_worksheet($customerProblemsWorkbook, 
+  ['MemberId', 'FamilyId', 'Problem']);
+my $problemRow = 1;
+
 my $emailCheck = {};
 my $indRow = 1;
 my $lnkRow = 1;
@@ -466,8 +472,28 @@ foreach my $memberId (keys %{$members}) {
     $member->{'PrimaryAddressStatusCode'} = $member->{'AddressStatusCode'};
   }
 
+  if ($member->{'PrimaryAddress1'} ne 'NOT AVAILABLE' && !$member->{'PrimaryCountry'}) {
+    write_record($customerProblemsWorksheet, $problemRow++, [
+      $member->{'MemberId'},
+      $member->{'FamilyId'},
+      'Missing country code',
+    ]);
+  }
+
   if ($member->{'Email'} && !$member->{'EmailLocationCode'}) {
-    dd($member);
+    write_record($customerProblemsWorksheet, $problemRow++, [
+      $member->{'MemberId'},
+      $member->{'FamilyId'},
+      'Missing email location code',
+    ]);
+  }
+
+  unless ($member->{'LastName'}) {
+    write_record($customerProblemsWorksheet, $problemRow++, [
+      $member->{'MemberId'},
+      $member->{'FamilyId'},
+      'Missing last name',
+    ]);
   }
 
   my $cusIndRecord = make_record($member, \@cusIndAllColumns, $cusIndColumnMap);

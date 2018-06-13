@@ -199,7 +199,7 @@ sub lookup_id {
       where t_id = ?
     }, undef, $tId);
 
-  die "Couldn't map $tId" unless ($pId);
+  print "Couldn't map $tId\n" unless ($pId);
 
   return $pId;
 }
@@ -521,6 +521,7 @@ sub donation_order_fields {
     CampaignBalance
     CampaignPledge
     CampaignPledgeStatus
+    ItemDescription
     PledgeType
     PledgeTypeFrequency
     PledgeNextBillDate

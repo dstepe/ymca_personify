@@ -697,7 +697,7 @@ sub clean_all_values {
 
 
   foreach my $key (qw( ListPrice NonMemberPrice FullMemberPrice ProgramParticipantPrice)) {
-    $values->{$key} =~ s/\$//;
+    $values->{$key} =~ s/[\$,]//g;
   }
 
   $values->{'StartDateTime'} = '' unless ($values->{'StartDateTime'});

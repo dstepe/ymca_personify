@@ -106,8 +106,8 @@ while(my $rowIn = $csv->getline($rateFile)) {
     'NewType' => $values->{'New Type'},
   };
 
-  ($prdRates->{$type}{'Monthly'} = $values->{'Monthly Amt'}) =~ s/\$//g;
-  ($prdRates->{$type}{'Annual'} = $values->{'Annual Amt'}) =~ s/\$//g;
+  ($prdRates->{$type}{'Monthly'} = $values->{'Monthly Amt'}) =~ s/[\$,]//g;
+  ($prdRates->{$type}{'Annual'} = $values->{'Annual Amt'}) =~ s/[\$,]//g;
 }
 close($rateFile);
 
@@ -136,12 +136,18 @@ my @allColumns = get_template_columns($templateName);
 my $workbook = make_workbook($templateName);
 my $worksheet = make_worksheet($workbook, \@allColumns);
 
+my $orderProblemsWorkbook = make_workbook('order_problems');
+our $orderProblemsWorksheet = make_worksheet($orderProblemsWorkbook, 
+  ['Source', 'Bill Id', 'Description', 'Problem']);
+our $orderProblemRow = 1;
+
 my $missingMembershipMap = {};
 my $row = 1;
 process_data_file(
   'data/member_orders.csv',
   sub {
     my $values = shift;
+    # dd($values);
 
     $values->{'SubSystem'} = 'MBR';
     $values->{'ParentProductCode'} = 'GMV';
@@ -157,8 +163,9 @@ process_data_file(
     $values->{'Fund'} = '';
     $values->{'Appeal'} = '';
     $values->{'CommentsOnInvoice'} = '';
-    $values->{'InvoiceDescription'} = '';
     $values->{'Comments'} = '';
+
+    $values->{'InvoiceDescription'} = $values->{'MembershipTypeDes'};
 
     $values->{'ShipCustomerId'} = $values->{'PerBillableMemberId'};
 
@@ -226,8 +233,8 @@ process_data_file(
       $discount /= 100;
 
       $values->{'DiscountAmount'} = $baseFee * $discount;
-    } elsif ($discount =~ /\$/) {
-      $discount =~ s/\$//;
+    } elsif ($discount =~ /[\$,]/) {
+      $discount =~ s/[\$,]//g;
 
       $values->{'DiscountAmount'} = $discount;
     }
@@ -240,6 +247,8 @@ process_data_file(
     $values->{'TotalAmount'} = $finalFee + $values->{'TaxPaidAmount'};
     $values->{'PaymentAmount'} = $values->{'TotalAmount'};
 
+    check_order_errors('Memberships', $values);
+    
     write_record(
       $worksheet,
       $row++,
@@ -275,9 +284,11 @@ process_data_file(
     $values->{'Fund'} = '';
     $values->{'Appeal'} = '';
     $values->{'CommentsOnInvoice'} = '';
-    $values->{'InvoiceDescription'} = '';
     $values->{'Comments'} = '';
+    $values->{'FullfillStatusDate'} = '';
     
+    $values->{'InvoiceDescription'} = $values->{'ItemDescription'};
+
     $values->{'ShipCustomerId'} = $values->{'PerMemberId'};
 
     $values->{'BeginDate'} = UnixDate($values->{'ProgramStartDate'}, '%Y-%m-%d');
@@ -290,6 +301,8 @@ process_data_file(
 
     $values->{'ParentProductCode'} = $values->{'ProductCode'};
 
+    check_order_errors('Programs', $values);
+    
     write_record(
       $worksheet,
       $row++,
@@ -322,10 +335,10 @@ process_data_file(
     $values->{'PricingDiscountCode'} = 'USD';
     $values->{'Campaign'} = '';
     $values->{'Fund'} = '';
-    $values->{'Appeal'} = '';
-    $values->{'InvoiceDescription'} = '';
-    
+    $values->{'Appeal'} = '';    
     $values->{'FullfillStatusDate'} = '';
+
+    $values->{'InvoiceDescription'} = $values->{'ItemDescription'};
 
     $values->{'Comments'} = decode_base64($values->{'Comments'});
     $values->{'CommentsOnInvoice'} = 'N';
@@ -345,6 +358,8 @@ process_data_file(
 
     $values->{'ParentProductCode'} = $values->{'ProductCode'};
 
+    check_order_errors('Campaign', $values);
+
     write_record(
       $worksheet,
       $row++,
@@ -352,3 +367,48 @@ process_data_file(
     );
   }
 );
+
+sub check_order_errors {
+  my $source = shift;
+  my $values = shift;
+
+  our $orderProblemsWorksheet;
+  our $orderProblemRow;
+
+  unless ($values->{'InvoiceDescription'}) {
+    write_record($orderProblemsWorksheet, $orderProblemRow++, [
+      $source,
+      $values->{'MemberId'} || '',
+      $values->{'MembershipTypeDes'} || '',
+      'Missing description',
+    ]);
+  }
+
+  if (!exists($values->{'DiscountAmount'}) || $values->{'DiscountAmount'} eq '') {
+    write_record($orderProblemsWorksheet, $orderProblemRow++, [
+      $source,
+      $values->{'MemberId'} || '',
+      $values->{'MembershipTypeDes'} || '',
+      'Null discount amount',
+    ]);
+  }
+
+  if ($values->{'TotalAmount'} < 0) {
+    write_record($orderProblemsWorksheet, $orderProblemRow++, [
+      $source,
+      $values->{'MemberId'} || '',
+      $values->{'MembershipTypeDes'} || '',
+      'Total amount less than zero',
+    ]);
+  }
+
+  if ($values->{'TaxPaidAmount'} < 0) {
+    write_record($orderProblemsWorksheet, $orderProblemRow++, [
+      $source,
+      $values->{'MemberId'} || '',
+      $values->{'MembershipTypeDes'} || '',
+      'Tax amount less than zero',
+    ]);
+  }
+
+}

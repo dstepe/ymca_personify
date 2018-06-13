@@ -131,7 +131,7 @@ process_data_file(
     $record = make_record($values, [member_order_fields()], make_column_map([member_order_fields()]));
     $csv->print($orderMaster, $record);
   }
-) if (0);
+);
 
 close($orderMaster);
 
@@ -179,7 +179,7 @@ process_data_file(
     $values->{'Balance'} = '';
     $values->{'ProgramFee'} = '';
 
-    $values->{'FeePaid'} =~ s/\$//;
+    $values->{'FeePaid'} =~ s/[\$,]//g;
 
     $values->{'ProductCode'} = lookup_product_code('program', $values);
 
@@ -206,7 +206,7 @@ process_data_file(
   },
   undef,
   $orderHeaderMap
-) if (0);
+);
 
 $orderHeaderMap = {
   'Branch' => 'BranchName',
@@ -247,8 +247,8 @@ foreach my $branchFile (qw( Atrium EastButler Fairfield Fitton Middletown )) {
       $values->{'OrderDate'} = UnixDate($values->{'DateEnrolled'}, '%Y-%m-%d');
       $values->{'StatusDate'} = $values->{'OrderDate'};
 
-      $values->{'Balance'} =~ s/\$//;
-      $values->{'ProgramFee'} =~ s/\$//;
+      $values->{'Balance'} =~ s/[\$,]//g;
+      $values->{'ProgramFee'} =~ s/[\$,]//g;
 
       $values->{'FeePaid'} = $values->{'ProgramFee'} - $values->{'Balance'};
 
@@ -275,7 +275,7 @@ foreach my $branchFile (qw( Atrium EastButler Fairfield Fitton Middletown )) {
     },
     undef,
     $orderHeaderMap
-  ) if (0);
+  );
 }
 
 $orderHeaderMap = {
