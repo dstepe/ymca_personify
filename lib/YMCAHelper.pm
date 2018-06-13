@@ -38,6 +38,7 @@ our @EXPORT_OK = qw(
   program_order_fields
   donation_order_fields
   branch_name_map
+  resolve_branch_name
   skip_program
   skip_cycle
   is_company
@@ -67,6 +68,7 @@ our @EXPORT = qw(
   program_order_fields
   donation_order_fields
   branch_name_map
+  resolve_branch_name
   skip_program
   skip_cycle
   is_company
@@ -434,6 +436,7 @@ sub billable_member {
 
 sub branch_name_map {
   return {
+    'Camp Campbell' => 'CG',
     'BTW Community Center' => 'BT',
     'Middletown' => 'MD',
     'Atrium' => 'AT',
@@ -441,8 +444,22 @@ sub branch_name_map {
     'Fitton Family' => 'FT',
     'East Butler' => 'EB',
     'Hamilton Central' => 'HC',
-    'Metropolitan' => 'HC',
+    'Metropolitan' => 'AS',
   };
+}
+
+sub resolve_branch_name {
+  my $values = shift;
+
+  my $name = '';
+
+  $name = 'BTW Community Center' if ($values->{'ItemDescription'} =~ /Booker/);
+  $name = 'Atrium' if ($values->{'ItemDescription'} =~ /Atrium/);
+  $name = 'Fairfield Family' if ($values->{'ItemDescription'} =~ /Fairfield/);
+  $name = 'Fitton Family' if ($values->{'ItemDescription'} =~ /Fitton/);
+  $name = 'Metropolitan' if ($values->{'ItemDescription'} =~ /Association/);
+
+  return $name;
 }
 
 sub common_order_fields {

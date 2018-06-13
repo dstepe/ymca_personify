@@ -53,7 +53,7 @@ my $columnMap = {
   'RECEIPT_CURRENCY_CODE'              => { 'type' => 'static', 'source' => 'USD' },
   'RECEIPT_DATE'                       => { 'type' => 'record', 'source' => 'OrderDate' },
   'XRATE'                              => { 'type' => 'static', 'source' => '1' },
-  'PAYMENT_AMOUNT'                     => { 'type' => 'record', 'source' => 'TotalAmount' },
+  'PAYMENT_AMOUNT'                     => { 'type' => 'record', 'source' => 'PaymentAmount' },
   'RECEIPT_STATUS_CODE'                => { 'type' => 'static', 'source' => 'A' },
   'RECEIPT_STATUS_DATE'                => { 'type' => 'record', 'source' => 'OrderDate' },
   'CL_LATE_FEE_FLAG'                   => { 'type' => 'static', 'source' => 'N' },
@@ -69,6 +69,7 @@ my $columnMap = {
   'APPEAL'                             => { 'type' => 'record', 'source' => 'Appeal' },
   'COMMENTS_ON_INVOICE_FLAG'           => { 'type' => 'record', 'source' => 'CommentsOnInvoice' },
   'DESCRIPTION'                        => { 'type' => 'record', 'source' => 'InvoiceDescription' },
+  'COMMENTS'                           => { 'type' => 'record', 'source' => 'Comments' },
   'AUTO_PAY_METHOD_CODE'               => { 'type' => 'static', 'source' => 'NONE' },
   'ATTENDANCE_FLAG'                    => { 'type' => 'record', 'source' => 'AttendanceFlag' },
   'BLOCK_SALES_TAX_FLAG'               => { 'type' => 'static', 'source' => 'N' },
@@ -157,6 +158,7 @@ process_data_file(
     $values->{'Appeal'} = '';
     $values->{'CommentsOnInvoice'} = '';
     $values->{'InvoiceDescription'} = '';
+    $values->{'Comments'} = '';
 
     $values->{'ShipCustomerId'} = $values->{'PerBillableMemberId'};
 
@@ -236,6 +238,7 @@ process_data_file(
     $values->{'TaxPaidAmount'} = sprintf("%.2f", $finalFee * $taxRate);
 
     $values->{'TotalAmount'} = $finalFee + $values->{'TaxPaidAmount'};
+    $values->{'PaymentAmount'} = $values->{'TotalAmount'};
 
     write_record(
       $worksheet,
@@ -273,6 +276,7 @@ process_data_file(
     $values->{'Appeal'} = '';
     $values->{'CommentsOnInvoice'} = '';
     $values->{'InvoiceDescription'} = '';
+    $values->{'Comments'} = '';
     
     $values->{'ShipCustomerId'} = $values->{'PerMemberId'};
 
@@ -282,6 +286,7 @@ process_data_file(
     $values->{'TrxInvoiceId'} = $values->{'ReceiptNumber'};
 
     $values->{'TotalAmount'} = $values->{'FeePaid'};
+    $values->{'PaymentAmount'} = $values->{'TotalAmount'};
 
     $values->{'ParentProductCode'} = $values->{'ProductCode'};
 
@@ -293,7 +298,7 @@ process_data_file(
   }
 );
 
-my $today = ParseDate('today');
+my $nextDueDate = UnixDate(DateCalc(ParseDate('today'), '+1 month'), '%Y-%m-%d');
 
 process_data_file(
   'data/donation_orders.csv',
@@ -331,15 +336,12 @@ process_data_file(
     $values->{'BeginDate'} = '';
     $values->{'EndDate'} = '';
 
-    $values->{'DueDate'} = '';
-    my $nextBillDate = ParseDate($values->{'PledgeNextBillDate'});
-    if (Date_Cmp($today, $nextBillDate) <= 0) {
-      $values->{'DueDate'} = UnixDate($nextBillDate, '%Y-%m-%d');
-    }
+    $values->{'DueDate'} = $nextDueDate;
 
     $values->{'TrxInvoiceId'} = $values->{'ReceiptNumber'};
 
     $values->{'TotalAmount'} = $values->{'FeePaid'};
+    $values->{'PaymentAmount'} = $values->{'FeePaid'} - $values->{'Balance'};
 
     $values->{'ParentProductCode'} = $values->{'ProductCode'};
 

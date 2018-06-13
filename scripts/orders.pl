@@ -312,6 +312,9 @@ process_data_file(
 
     $values->{'OrderNo'} = $orderNo++;
 
+    $values->{'BranchName'} = resolve_branch_name($values)
+      unless ($values->{'BranchName'});
+
     $values->{'Session'} = '';
     $values->{'ProgramStartDate'} = '';
     $values->{'ProgramEndDate'} = '';
@@ -320,7 +323,6 @@ process_data_file(
     $values->{'Balance'} = $values->{'CampaignBalance'};
     $values->{'DatePaid'} = UnixDate($values->{'PledgeDate'}, '%Y-%m-%d');
     $values->{'Cycle'} = '';
-    $values->{'ProductCode'} = '';
 
     $values->{'PerMemberId'} = lookup_id($values->{'MemberId'});
     $values->{'PerBillableMemberId'} = $values->{'PerMemberId'};
@@ -328,12 +330,17 @@ process_data_file(
     $values->{'OrderDate'} = $values->{'PledgeDate'};
     $values->{'StatusDate'} = $values->{'PledgeDate'};
 
-    $values->{'FeePaid'} =~ s/\$//;
-    $values->{'Balance'} =~ s/\$//;
+    $values->{'FeePaid'} =~ s/[\$,]//g;
+    $values->{'Balance'} =~ s/[\$,]//g;
 
     $values->{'Comments'} =~ s/^\s+//;
     $values->{'Comments'} =~ s/\s+$//;
-    $values->{'Comments'} = decode_utf8(encode_base64($values->{'Comments'}));
+    $values->{'Comments'} = encode_base64($values->{'Comments'}, '');
+
+    $values->{'BranchCode'} = branch_name_map()->{$values->{'BranchName'}};
+
+    $values->{'ProductCode'} = $values->{'BranchCode'} . '-CASH';
+    $values->{'ProductCode'} = $values->{'BranchCode'} . '-PLEDGE' if ($values->{'Balance'} > 0);
 
     # $values->{'ProductCode'} = lookup_product_code('program', $values);
 
