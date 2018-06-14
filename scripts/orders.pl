@@ -131,7 +131,7 @@ process_data_file(
     $record = make_record($values, [member_order_fields()], make_column_map([member_order_fields()]));
     $csv->print($orderMaster, $record);
   }
-);
+) if (0);
 
 close($orderMaster);
 
@@ -206,7 +206,7 @@ process_data_file(
   },
   undef,
   $orderHeaderMap
-);
+) if (0);
 
 $orderHeaderMap = {
   'Branch' => 'BranchName',
@@ -275,11 +275,14 @@ foreach my $branchFile (qw( Atrium EastButler Fairfield Fitton Middletown )) {
     },
     undef,
     $orderHeaderMap
-  );
+  ) if (0);
 }
+
+close($programMaster);
 
 $orderHeaderMap = {
   'memberid' => 'MemberId',
+  'Attributions' => 'DonorName',
   'branch Name' => 'BranchName',
   'Billing Frequency' => 'BillingFrequency',
   'Campaign Balance' => 'CampaignBalance',
@@ -298,8 +301,6 @@ $orderHeaderMap = {
   'Volunteer Goal' => 'VolunteerGoal',
   'Volunteer Name' => 'VolunteerName',
 };
-
-close($programMaster);
 
 open(my $donationMaster, '>', 'data/donation_orders.csv')
   or die "Couldn't open data/donation_orders.csv: $!";
@@ -337,27 +338,27 @@ process_data_file(
     $values->{'Comments'} =~ s/\s+$//;
     $values->{'Comments'} = encode_base64($values->{'Comments'}, '');
 
-    $values->{'BranchCode'} = branch_name_map()->{$values->{'BranchName'}};
+    my $campaignProductDetails = lookup_campaign_product($values);
 
-    $values->{'ProductCode'} = $values->{'BranchCode'} . '-CASH';
-    $values->{'ProductCode'} = $values->{'BranchCode'} . '-PLEDGE' if ($values->{'Balance'} > 0);
+    $values->{'BranchName'} = $campaignProductDetails->{'BranchName'};
+    $values->{'BranchCode'} = $campaignProductDetails->{'BranchCode'};
+    $values->{'ProductCode'} = $campaignProductDetails->{'ProductCode'};
+    $values->{'CampaignCode'} = $campaignProductDetails->{'CampaignCode'};
+    $values->{'FundCode'} = $campaignProductDetails->{'FundCode'};
+    # dd($values);
+    unless ($values->{'ProductCode'}) {
+      write_record($noProductCodeWorksheet, $noProductRow++, [
+        'program',
+        $values->{'BranchName'},
+        '',
+        '',
+        $values->{'ItemDescription'},
+        '',
+        ''
+      ]);
 
-    # $values->{'ProductCode'} = lookup_product_code('program', $values);
-
-    # unless ($values->{'ProductCode'}) {
-    #   my $skipped = skip_program($values->{'ProgramDescription'});
-    #   write_record($noProductCodeWorksheet, $noProductRow++, [
-    #     'program',
-    #     $values->{'BranchName'},
-    #     $values->{'Cycle'},
-    #     $values->{'ProgramDescription'},
-    #     $values->{'ItemDescription'},
-    #     '',
-    #     $skipped ? 'Skipped' : ''
-    #   ]);
-
-    #   return;    
-    # }
+      return;    
+    }
 
     my $record = make_record($values, \@allColumns, $columnMap);
     write_record($worksheet, $order++, $record);
@@ -407,6 +408,34 @@ sub lookup_product_code {
   my($productCode) = $sth->fetchrow_array();
 
   return $productCode;
+}
+
+sub lookup_campaign_product {
+  my $values = shift;
+
+  my $details = {
+    'ProductCode' => '',
+    'BranchName' => '',
+    'BranchCode' => '',
+    'CampaignCode' => '',
+    'FundCode' => 'ANNUAL_FUND'
+  };
+
+  $details->{'BranchName'} = resolve_branch_name($values);
+  $details->{'BranchCode'} = branch_name_map()->{$details->{'BranchName'}};
+  
+  if ($values->{'ItemDescription'} =~ /(20\d{2})/) {
+    $details->{'CampaignCode'} = $1 . '_' . $details->{'BranchCode'};
+  }
+
+  my $eventType = 'GN';
+  $eventType = 'EVENT' if ($values->{'ItemDescription'} =~ /event/i);
+
+  my $fundType = ($values->{'Balance'} > 0) ? 'PL' : 'CA';
+
+  $details->{'ProductCode'} = join('_', $details->{'BranchCode'}, 'ANNUAL', $eventType, $fundType);
+
+  return $details;
 }
 
 sub make_column_map {

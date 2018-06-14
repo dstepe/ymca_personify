@@ -450,14 +450,19 @@ sub branch_name_map {
 
 sub resolve_branch_name {
   my $values = shift;
+  my $from = shift || 'ItemDescription';
 
   my $name = '';
 
-  $name = 'BTW Community Center' if ($values->{'ItemDescription'} =~ /Booker/);
-  $name = 'Atrium' if ($values->{'ItemDescription'} =~ /Atrium/);
-  $name = 'Fairfield Family' if ($values->{'ItemDescription'} =~ /Fairfield/);
-  $name = 'Fitton Family' if ($values->{'ItemDescription'} =~ /Fitton/);
-  $name = 'Metropolitan' if ($values->{'ItemDescription'} =~ /Association/);
+  $name = 'Camp Campbell' if ($values->{$from} =~ /Campbell/);
+  $name = 'BTW Community Center' if ($values->{$from} =~ /Booker/);
+  $name = 'Atrium' if ($values->{$from} =~ /Atrium/);
+  $name = 'Fairfield Family' if ($values->{$from} =~ /Fairfield/);
+  $name = 'Fitton Family' if ($values->{$from} =~ /Fitton/);
+  $name = 'Metropolitan' if ($values->{$from} =~ /Association/);
+  $name = 'Hamilton Central' if ($values->{$from} =~ /Central/);
+  $name = 'East Butler' if ($values->{$from} =~ /East/);
+  $name = 'Middletown' if ($values->{$from} =~ /Middletown/);
 
   return $name;
 }
@@ -518,6 +523,7 @@ sub donation_order_fields {
   my @orderFields = common_order_fields();
 
   push(@orderFields, qw(
+    DonorName
     CampaignBalance
     CampaignPledge
     CampaignPledgeStatus
@@ -530,6 +536,8 @@ sub donation_order_fields {
     Balance
     DatePaid
     ProductCode
+    CampaignCode
+    FundCode
     Comments
   ));
 

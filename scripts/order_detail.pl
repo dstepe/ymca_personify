@@ -81,6 +81,25 @@ my $columnMap = {
   'TOTAL_DEPOSIT_TAX'                  => { 'type' => 'static', 'source' => '0' },
 };
 
+my $fndOrderTemplateName = 'DCT_FND_ORDER_DETAIL-67574';
+
+my $fndOrderColumnMap = {
+  'ORDER_NO'                               => { 'type' => 'record', 'source' => 'OrderNo' },
+  'ORDER_LINE_NO'                          => { 'type' => 'static', 'source' => '1' },
+  'LIST_DONOR_AS'                          => { 'type' => 'record', 'source' => 'DonorName' },
+  'SOFT_CREDIT_MAST_CUST'                  => { 'type' => 'record', 'source' => 'SoftCreditCustId' },
+  'RESTRICTED_GIFT_FLAG'                   => { 'type' => 'static', 'source' => 'N' },
+  'CREATE_TRANSACTION_FLAG'                => { 'type' => 'static', 'source' => 'Y' },
+  'RECOGNIZED_FLAG'                        => { 'type' => 'static', 'source' => 'Y' },
+  'TRIBUTE_TYPE_CODE'                      => { 'type' => 'record', 'source' => 'TributeTypeCode' },
+  'IN_TRIBUTE_TO_MAST_CUST'                => { 'type' => 'record', 'source' => 'InTributeToCustId' },
+  'ANONYMOUS_FLAG'                         => { 'type' => 'record', 'source' => 'Anonymous' },
+  'GIVE_TRIBUTE_CUSTOMER_CREDIT_FLAG'      => { 'type' => 'static', 'source' => 'N' },
+  'IN_TRIBUTE_TO_LABEL_NAME'               => { 'type' => 'record', 'source' => 'InTributeToCustName' },
+  'RECURRING_GIFT_FLAG'                    => { 'type' => 'static', 'source' => 'N' },
+  'COMPANY_MATCHES_GIFT_FLAG'              => { 'type' => 'static', 'source' => 'N' },
+};
+
 my $taxRates = {
   'Atrium' => .07,
   'Other' => .065,
@@ -311,6 +330,12 @@ process_data_file(
   }
 );
 
+my @fndOrderAllColumns = get_template_columns($fndOrderTemplateName);
+
+my $fndOrderWorkbook = make_workbook($fndOrderTemplateName);
+my $fndOrderWorksheet = make_worksheet($fndOrderWorkbook, \@fndOrderAllColumns);
+my $fndOrderRow = 1;
+
 my $nextDueDate = UnixDate(DateCalc(ParseDate('today'), '+1 month'), '%Y-%m-%d');
 
 process_data_file(
@@ -337,6 +362,12 @@ process_data_file(
     $values->{'Fund'} = '';
     $values->{'Appeal'} = '';    
     $values->{'FullfillStatusDate'} = '';
+    $values->{'SoftCreditCustId'} = '';
+    $values->{'TributeTypeCode'} = '';
+    $values->{'InTributeToCustId'} = '';
+    $values->{'InTributeToCustName'} = '';
+
+    $values->{'Anonymous'} = $values->{'DonorName'} =~ /ann?on/i ? 'Y' : 'N';
 
     $values->{'InvoiceDescription'} = $values->{'ItemDescription'};
 
@@ -364,6 +395,12 @@ process_data_file(
       $worksheet,
       $row++,
       make_record($values, \@allColumns, $columnMap)
+    );
+
+    write_record(
+      $fndOrderWorksheet,
+      $fndOrderRow++,
+      make_record($values, \@fndOrderAllColumns, $fndOrderColumnMap)
     );
   }
 );
