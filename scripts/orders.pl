@@ -345,6 +345,9 @@ process_data_file(
     $values->{'ProductCode'} = $campaignProductDetails->{'ProductCode'};
     $values->{'CampaignCode'} = $campaignProductDetails->{'CampaignCode'};
     $values->{'FundCode'} = $campaignProductDetails->{'FundCode'};
+
+    $values->{'PerSolicitorId'} = '';
+    
     # dd($values);
     unless ($values->{'ProductCode'}) {
       write_record($noProductCodeWorksheet, $noProductRow++, [

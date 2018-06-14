@@ -64,9 +64,9 @@ my $columnMap = {
   'ACTUAL_SHIP_AMOUNT'                 => { 'type' => 'static', 'source' => '0' },
   'ACTUAL_TAX_AMOUNT'                  => { 'type' => 'record', 'source' => 'TaxPaidAmount' },
   'MARKET_CODE'                        => { 'type' => 'record', 'source' => 'MarketCode' },
-  'CAMPAIGN'                           => { 'type' => 'record', 'source' => 'Campaign' },
-  'FUND'                               => { 'type' => 'record', 'source' => 'Fund' },
-  'APPEAL'                             => { 'type' => 'record', 'source' => 'Appeal' },
+  'CAMPAIGN'                           => { 'type' => 'record', 'source' => 'CampaignCode' },
+  'FUND'                               => { 'type' => 'record', 'source' => 'FundCode' },
+  'APPEAL'                             => { 'type' => 'record', 'source' => 'AppealCode' },
   'COMMENTS_ON_INVOICE_FLAG'           => { 'type' => 'record', 'source' => 'CommentsOnInvoice' },
   'DESCRIPTION'                        => { 'type' => 'record', 'source' => 'InvoiceDescription' },
   'COMMENTS'                           => { 'type' => 'record', 'source' => 'Comments' },
@@ -98,6 +98,28 @@ my $fndOrderColumnMap = {
   'IN_TRIBUTE_TO_LABEL_NAME'               => { 'type' => 'record', 'source' => 'InTributeToCustName' },
   'RECURRING_GIFT_FLAG'                    => { 'type' => 'static', 'source' => 'N' },
   'COMPANY_MATCHES_GIFT_FLAG'              => { 'type' => 'static', 'source' => 'N' },
+};
+
+my $fndHardCreditTemplateName = 'DCT_FND_HARD_CREDIT-95863';
+
+my $fndHardCreditColumnMap = {
+  'ORG_ID'                => { 'type' => 'static', 'source' => 'GMVYMCA' },
+  'ORG_UNIT_ID'           => { 'type' => 'static', 'source' => 'GMVYMCA' },
+  'CUSTOMER_ID'           => { 'type' => 'record', 'source' => 'PerMemberId' },
+  'TXN_DATE'              => { 'type' => 'record', 'source' => 'DatePaid' },
+  'PAYMENT_BASED_FLAG'    => { 'type' => 'static', 'source' => 'N' },
+  'PARENT_PRODUCT'        => { 'type' => 'record', 'source' => 'ParentProductCode' },
+  'PRODUCT_CODE'          => { 'type' => 'record', 'source' => 'ProductCode' },
+  'ORDER_NO'              => { 'type' => 'record', 'source' => 'OrderNo' },
+  'ORDER_LINE_NO'         => { 'type' => 'static', 'source' => '1' },
+  'CAMPAIGN'              => { 'type' => 'record', 'source' => 'CampaignCode' },
+  'FUND'                  => { 'type' => 'record', 'source' => 'FundCode' },
+  'APPEAL'                => { 'type' => 'record', 'source' => 'AppealCode' },
+  'SOLICITOR_CUSTOMER_ID' => { 'type' => 'record', 'source' => 'PerSolicitorId' },
+  'CREDIT_AMOUNT'         => { 'type' => 'record', 'source' => 'TotalAmount' },
+  'CREDIT_TYPE_CODE'      => { 'type' => 'static', 'source' => 'Bill' },
+  'ACK_LETTER_CODE'       => { 'type' => 'static', 'source' => 'HISTORY' },
+  'COMMENTS'              => { 'type' => 'record', 'source' => 'Comments' },
 };
 
 my $taxRates = {
@@ -178,9 +200,9 @@ process_data_file(
     $values->{'BackIssueFlag'} = 'Y';
     $values->{'DueDate'} = '';
     $values->{'PricingDiscountCode'} = '';
-    $values->{'Campaign'} = '';
-    $values->{'Fund'} = '';
-    $values->{'Appeal'} = '';
+    $values->{'CampaignCode'} = '';
+    $values->{'FundCode'} = '';
+    $values->{'AppealCode'} = '';
     $values->{'CommentsOnInvoice'} = '';
     $values->{'Comments'} = '';
 
@@ -299,12 +321,13 @@ process_data_file(
     $values->{'BackIssueFlag'} = 'Y';
     $values->{'DueDate'} = '';
     $values->{'PricingDiscountCode'} = '';
-    $values->{'Campaign'} = '';
-    $values->{'Fund'} = '';
-    $values->{'Appeal'} = '';
+    $values->{'CampaignCode'} = '';
+    $values->{'FundCode'} = '';
+    $values->{'AppealCode'} = '';
     $values->{'CommentsOnInvoice'} = '';
     $values->{'Comments'} = '';
     $values->{'FullfillStatusDate'} = '';
+    $values->{'PerSolicitorId'} = '';
     
     $values->{'InvoiceDescription'} = $values->{'ItemDescription'};
 
@@ -336,6 +359,12 @@ my $fndOrderWorkbook = make_workbook($fndOrderTemplateName);
 my $fndOrderWorksheet = make_worksheet($fndOrderWorkbook, \@fndOrderAllColumns);
 my $fndOrderRow = 1;
 
+my @fndHardCreditAllColumns = get_template_columns($fndHardCreditTemplateName);
+
+my $fndHardCreditWorkbook = make_workbook($fndHardCreditTemplateName);
+my $fndHardCreditWorksheet = make_worksheet($fndHardCreditWorkbook, \@fndHardCreditAllColumns);
+my $fndHardCreditRow = 1;
+
 my $nextDueDate = UnixDate(DateCalc(ParseDate('today'), '+1 month'), '%Y-%m-%d');
 
 process_data_file(
@@ -358,14 +387,12 @@ process_data_file(
     $values->{'RequireDiscountCalc'} = 'N';
     $values->{'BackIssueFlag'} = '';
     $values->{'PricingDiscountCode'} = 'USD';
-    $values->{'Campaign'} = '';
-    $values->{'Fund'} = '';
-    $values->{'Appeal'} = '';    
     $values->{'FullfillStatusDate'} = '';
     $values->{'SoftCreditCustId'} = '';
     $values->{'TributeTypeCode'} = '';
     $values->{'InTributeToCustId'} = '';
     $values->{'InTributeToCustName'} = '';
+    $values->{'AppealCode'} = '';
 
     $values->{'Anonymous'} = $values->{'DonorName'} =~ /ann?on/i ? 'Y' : 'N';
 
@@ -401,6 +428,12 @@ process_data_file(
       $fndOrderWorksheet,
       $fndOrderRow++,
       make_record($values, \@fndOrderAllColumns, $fndOrderColumnMap)
+    );
+
+    write_record(
+      $fndHardCreditWorksheet,
+      $fndHardCreditRow++,
+      make_record($values, \@fndHardCreditAllColumns, $fndHardCreditColumnMap)
     );
   }
 );

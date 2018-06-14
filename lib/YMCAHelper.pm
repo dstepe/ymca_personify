@@ -539,6 +539,7 @@ sub donation_order_fields {
     CampaignCode
     FundCode
     Comments
+    PerSolicitorId
   ));
 
   return @orderFields;
