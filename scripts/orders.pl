@@ -378,6 +378,69 @@ process_data_file(
 
 close($donationMaster);
 
+$orderHeaderMap = {
+  'Amount' => 'FeePaid',
+  'Amount Due' => 'AmountDue',
+  'Branch' => 'BranchName',
+  'Date' => 'OrderDate',
+  'Days Past Due' => 'DaysPastDue',
+  'Description' => 'ItemDescription',
+  'Do Not Mail Invoice' => 'DoNotMailInvoice',
+  'End Date' => 'EndDate',
+  'GL#' => 'GlAccount',
+  'Member ID' => 'MemberId',
+  'Membership Status' => 'MembershipStatus',
+  'Membership Type' => 'MembershipType',
+  'Notes' => 'Notes',
+  'Reference #' => 'ReceiptNumber',
+  'Sales Tax' => 'SalesTax',
+  'Start Date' => 'StartDate',
+  'Total Due' => 'Balance',
+  'Total Pledge Amount Due' => 'TotalPledgeAmountDue',
+  'Type' => 'Comments',
+};
+
+my $currentDate = UnixDate(ParseDate('today'), '%Y-%m-%d');
+
+open(my $arBalMaster, '>', 'data/arbal_orders.csv')
+  or die "Couldn't open data/arbal_orders.csv: $!";
+$csv->print($arBalMaster, [arbal_order_fields()]);
+
+foreach my $arFile (qw( Camps Childcare Counter Memberships Programs)) {
+  process_data_file(
+    'data/AR' . $arFile . '.csv',
+    sub {
+      my $values = shift;
+      # dd($values); 
+
+      return if (Date_Cmp($currentDate, ParseDate($values->{'OrderDate'})) == -1);
+      return if ($values->{'MemberId'} =~ /^\d$/);
+
+      $values->{'OrderNo'} = $orderNo++;
+
+      $values->{'ProductCode'} = 'MISC PROD';
+      $values->{'DatePaid'} = '';
+
+      $values->{'StatusDate'} = $values->{'OrderDate'};
+
+      $values->{'PerMemberId'} = lookup_id($values->{'MemberId'});
+      $values->{'PerBillableMemberId'} = $values->{'PerMemberId'};
+
+      $values->{'FeePaid'} =~ s/[\$,]//g;
+      $values->{'Balance'} =~ s/[\$,]//g;
+
+      my $record = make_record($values, \@allColumns, $columnMap);
+      write_record($worksheet, $order++, $record);
+
+      $record = make_record($values, [arbal_order_fields()], make_column_map([arbal_order_fields()]));
+      $csv->print($arBalMaster, $record);
+    },
+    undef,
+    $orderHeaderMap
+  );
+}
+close($arBalMaster);
+
 sub lookup_product_code {
   my $type = shift;
   my $values = shift;

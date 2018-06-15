@@ -37,6 +37,7 @@ our @EXPORT_OK = qw(
   member_order_fields
   program_order_fields
   donation_order_fields
+  arbal_order_fields
   branch_name_map
   resolve_branch_name
   skip_program
@@ -67,6 +68,7 @@ our @EXPORT = qw(
   member_order_fields
   program_order_fields
   donation_order_fields
+  arbal_order_fields
   branch_name_map
   resolve_branch_name
   skip_program
@@ -114,23 +116,6 @@ sub make_worksheet {
   return $worksheet;
 }
 
-sub write_record {
-  my $worksheet = shift;
-  my $row = shift;
-  my $record = shift;
-
-  for(my $i = 0; $i < scalar(@{$record}); $i++) {
-    if (!defined($record->[$i])) {
-      print "$i not defined\n";
-    }
-    if ($record->[$i] =~ /^0\d/) {
-      $worksheet->write_string($row, $i, $record->[$i]);
-    } else {
-      $worksheet->write($row, $i, $record->[$i]);
-    }   
-  }
-}
-
 sub map_values {
   my $headers = shift;
   my $values = shift;
@@ -159,12 +144,29 @@ sub split_values {
   return $mapped;
 }
 
+sub write_record {
+  my $worksheet = shift;
+  my $row = shift;
+  my $record = shift;
+
+  for(my $i = 0; $i < scalar(@{$record}); $i++) {
+    if (!defined($record->[$i])) {
+      print "$i not defined\n";
+    }
+    if ($record->[$i] =~ /^0\d/) {
+      $worksheet->write_string($row, $i, $record->[$i]);
+    } else {
+      $worksheet->write($row, $i, $record->[$i]);
+    }   
+  }
+}
+
 sub make_record {
   my $values = shift;
   my $allColumns = shift;
   my $columnMap = shift;
 
-  # print "$allColumns->[32]\n";exit;
+  # print "$allColumns->[4]\n";exit;
   my @record;
   foreach my $field (@{$allColumns}) {
     unless (exists($columnMap->{$field})) {
@@ -542,6 +544,23 @@ sub donation_order_fields {
     FundCode
     Comments
     PerSolicitorId
+  ));
+
+  return @orderFields;
+}
+
+sub arbal_order_fields {
+
+  my @orderFields = common_order_fields();
+
+  push(@orderFields, qw(
+    ItemDescription
+    ReceiptNumber
+    FeePaid
+    Balance
+    DatePaid
+    ProductCode
+    Comments
   ));
 
   return @orderFields;

@@ -450,6 +450,68 @@ process_data_file(
   }
 );
 
+process_data_file(
+  'data/arbal_orders.csv',
+  sub {
+    my $values = shift;
+    # dd($values);
+
+    $values->{'SubSystem'} = 'MISC';
+    $values->{'RateCode'} = 'STD';
+    $values->{'MarketCode'} = '';
+    $values->{'TaxableFlag'} = 'N';
+    $values->{'TaxCategoryCode'} = '';
+    $values->{'DiscountAmount'} = 0;
+    $values->{'DiscountCode'} = '';
+    $values->{'TaxPaidAmount'} = 0;
+    $values->{'AttendanceFlag'} = 'Y';
+    $values->{'JoinDate'} = '';
+    $values->{'PayFrequencyCode'} = '';
+    $values->{'RequireDiscountCalc'} = 'Y';
+    $values->{'BackIssueFlag'} = 'N';
+    $values->{'PricingDiscountCode'} = 'USD';
+    $values->{'FullfillStatusDate'} = '';
+    $values->{'SoftCreditCustId'} = '';
+    $values->{'TributeTypeCode'} = '';
+    $values->{'InTributeToCustId'} = '';
+    $values->{'InTributeToCustName'} = '';
+    $values->{'CampaignCode'} = '';
+    $values->{'FundCode'} = '';
+    $values->{'AppealCode'} = '';
+
+    $values->{'Anonymous'} = '';
+
+    $values->{'InvoiceDescription'} = $values->{'ItemDescription'};
+
+    $values->{'Comments'} = $values->{'Comments'};
+    $values->{'CommentsOnInvoice'} = 'N';
+    $values->{'CommentsOnInvoice'} = 'Y' if ($values->{'Comments'});
+
+    $values->{'ShipCustomerId'} = $values->{'PerMemberId'};
+
+    $values->{'BeginDate'} = '';
+    $values->{'EndDate'} = '';
+
+    $values->{'DueDate'} = '';
+
+    $values->{'TrxInvoiceId'} = $values->{'ReceiptNumber'};
+
+    $values->{'TotalAmount'} = $values->{'Balance'};
+    $values->{'PaymentAmount'} = 0;
+
+    $values->{'ParentProductCode'} = $values->{'ProductCode'};
+
+    check_order_errors('Campaign', $values);
+
+    write_record(
+      $worksheet,
+      $row++,
+      make_record($values, \@allColumns, $columnMap)
+    );
+
+  }
+);
+
 sub check_order_errors {
   my $source = shift;
   my $values = shift;
