@@ -350,8 +350,20 @@ process_data_file(
     $values->{'FundCode'} = $campaignProductDetails->{'FundCode'};
 
     $values->{'PerSolicitorId'} = '';
+    my($nameMatchCount) = $dbh->selectrow_array(q{
+      select count(*)
+        from name_map
+        where c_name = ?
+      }, undef, $values->{'VolunteerName'});
     
-    # dd($values);
+    if ($nameMatchCount == 1) {
+      ($values->{'PerSolicitorId'}) = $dbh->selectrow_array(q{
+        select p_id
+          from name_map
+          where c_name = ?
+        }, undef, $values->{'VolunteerName'});
+    }
+
     unless ($values->{'ProductCode'}) {
       write_record($noProductCodeWorksheet, $noProductRow++, [
         'program',

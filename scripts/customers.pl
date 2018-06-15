@@ -20,6 +20,9 @@ $dbh->do(q{
   delete from access
   });
 
+$dbh->do(q{
+  delete from name_map
+  });
 
 my $cusIndTemplateName = 'DCT_CUS_INDIVIDUAL';
 
@@ -470,6 +473,11 @@ foreach my $memberId (keys %{$members}) {
       'Missing last name',
     ]);
   }
+
+  $dbh->do(q{
+    insert into name_map (p_id, c_name)
+      values (?, ?)
+    }, undef, $member->{'PerMemberId'}, $member->{'FormalName'});
 
   my $cusIndRecord = make_record($member, \@cusIndAllColumns, $cusIndColumnMap);
 
