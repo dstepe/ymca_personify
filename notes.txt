@@ -33,3 +33,6 @@
   Do program product also increment this same way?
 
 Camp start/end times
+
+- PRD end dates
+  Should be one month but are a year

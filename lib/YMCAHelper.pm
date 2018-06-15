@@ -357,7 +357,7 @@ sub clean_customer {
     $values->{'State'} = '';
     $values->{'Zip'} = '';
     $values->{'Country'} = '';
-    $values->{'AddressTypeCode'} = '';
+    $values->{'AddressTypeCode'} = 'BLANK';
     $values->{'AddressStatusCode'} = '';
   }
 
@@ -404,6 +404,7 @@ sub clean_customer {
 
   # Convert TRX IDs to Personify IDs
   $values->{'PerMemberId'} = lookup_id($values->{'MemberId'});
+  $values->{'PerBillableMemberId'} = lookup_id($values->{'BillableMemberId'});
 
   # dump($values);exit;
   return $values;
@@ -420,7 +421,7 @@ sub get_gender {
 sub is_member {
   my $values = shift;
 
-  return 0 if (lc $values->{'MembershipType'} eq lc 'Non-Member');
+  return 0 if (lc $values->{'MembershipType'} eq 'non-member');
   return 0 if ($values->{'MembershipType'} =~ /program/i);
 
   return 1;
@@ -492,6 +493,7 @@ sub member_order_fields {
     JoinDate
     FamilyId
     SponsorDiscount
+    AccessDenied
   ));
 
   return @orderFields;

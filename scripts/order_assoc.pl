@@ -29,7 +29,26 @@ my $worksheet = make_worksheet($workbook, \@allColumns);
 
 my $csv = Text::CSV_XS->new ({ auto_diag => 1 });
 
-my($ordersFile, $headers, $totalRows) = open_data_file('data/member_orders.csv');
+# Load assoc orders file
+my $assocOrder = {};
+my($assocOrdersFile, $headers, $totalRows) = open_data_file('data/assoc_orders.csv');
+while(my $rowIn = $csv->getline($assocOrdersFile)) {
+  my $values = map_values($headers, $rowIn);
+
+  my $membershipType = uc $values->{'MembershipType'};
+
+  unless (exists($assocOrder->{$values->{'BillingMemberId'}}{$values->{'FamilyId'}}{$membershipType})) {
+    $assocOrder->{$values->{'BillingMemberId'}}{$values->{'FamilyId'}}{$membershipType} = [];
+  }
+
+  push(@{$assocOrder->{$values->{'BillingMemberId'}}{$values->{'FamilyId'}}{$membershipType}}, $values->{'MemberId'});
+
+}
+close($assocOrdersFile);
+
+# For each member order, find any assocs and add them here
+my $ordersFile;
+($ordersFile, $headers, $totalRows) = open_data_file('data/member_orders.csv');
 
 my $familyOrders = {};
 my $progress = Term::ProgressBar->new({ 'count' => $totalRows });
@@ -41,30 +60,49 @@ while(my $rowIn = $csv->getline($ordersFile)) {
 
   my $values = map_values($headers, $rowIn);
 
-  $familyOrders->{$values->{'FamilyId'}} = {
-    'OrderNo' => $values->{'OrderNo'},
-    'MemberId' => $values->{'PerMemberId'},
-    'BillingId' => $values->{'PerBillableMemberId'}
-  }
-}
-close($ordersFile);
+  next unless (exists($assocOrder->{$values->{'PerBillableMemberId'}}));
+  next unless (exists($assocOrder->{$values->{'PerBillableMemberId'}}{$values->{'FamilyId'}}));
+  next unless (exists($assocOrder->{$values->{'PerBillableMemberId'}}{$values->{'FamilyId'}}{$values->{'MembershipTypeDes'}}));
 
-$row = 1;
-process_customer_file(
-  sub {
-    my $values = shift;
+  my $assocMembers = $assocOrder->{$values->{'PerBillableMemberId'}}{$values->{'FamilyId'}}{$values->{'MembershipTypeDes'}};
 
-    my $familyId = $values->{'FamilyId'};
-
-    return unless (exists($familyOrders->{$familyId}));
-    return if ($values->{'PerMemberId'} eq $familyOrders->{$familyId}{'BillingId'});
-    
-    $values->{'OrderNo'} = $familyOrders->{$familyId}{'OrderNo'};
+  foreach my $assocMember (@{$assocMembers}) {
+    my $record = {
+      'OrderNo' => $values->{'OrderNo'},
+      'PerMemberId' => $assocMember,
+    };
 
     write_record(
       $worksheet,
       $row++,
-      make_record($values, \@allColumns, $columnMap)
+      make_record($record, \@allColumns, $columnMap)
     );
   }
-);
+
+}
+close($ordersFile);
+
+# $row = 1;
+# process_customer_file(
+#   sub {
+#     my $values = shift;
+
+#     my $familyId = $values->{'FamilyId'};
+
+#     dump($values);
+#     return unless (exists($familyOrders->{$familyId}));
+#     return if ($values->{'PerMemberId'} eq $familyOrders->{$familyId}{'BillingId'});
+    
+#     print Dumper($familyOrders->{$familyId});
+#     print "customer $values->{'PerMemberId'} $familyId\n";
+#     exit;
+
+#     $values->{'OrderNo'} = $familyOrders->{$familyId}{'OrderNo'};
+
+#     write_record(
+#       $worksheet,
+#       $row++,
+#       make_record($values, \@allColumns, $columnMap)
+#     );
+#   }
+# );

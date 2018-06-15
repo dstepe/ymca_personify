@@ -14,6 +14,9 @@ use Text::CSV_XS;
 use Term::ProgressBar;
 use MIME::Base64;
 use Encode;
+use DBI;
+
+my $dbh = DBI->connect('dbi:SQLite:dbname=db/ymca.db','','');
 
 my $templateName = 'DCT_ORDER_MASTER-42939';
 
@@ -94,7 +97,6 @@ process_data_file(
   'data/MembershipOrders.csv',
   sub {
     my $values = shift;
-    # print Dumper($values);exit;
 
     $types->{$values->{'MembershipTypeDes'}}{$values->{'PaymentMethod'}}++;
 
@@ -123,21 +125,25 @@ process_data_file(
     $values->{'StatusDate'} = $values->{'OrderDate'};
     $values->{'OrderNo'} = $orderNo++;
 
+    $values->{'RenewMembershipFee'} =~ s/[^0-9\.]//g;
+
+    ($values->{'AccessDenied'}) = $dbh->selectrow_array(q{
+      select access
+        from access
+        where p_id = ?
+      }, undef, $values->{'PerMemberId'});
+
     my $record = make_record($values, \@allColumns, $columnMap);
     write_record($worksheet, $order++, $record);
-
-    $values->{'RenewMembershipFee'} =~ s/[^0-9\.]//g;
 
     $record = make_record($values, [member_order_fields()], make_column_map([member_order_fields()]));
     $csv->print($orderMaster, $record);
   }
-) if (0);
+);
 
 close($orderMaster);
 
 print Dumper($unmappedMembers) if (@{$unmappedMembers});
-
-my $dbh = DBI->connect('dbi:SQLite:dbname=db/ymca.db','','');
 
 my $noProductCodeWorkbook = make_workbook('missing_product_code');
 my $noProductCodeWorksheet = make_worksheet($noProductCodeWorkbook, 
@@ -206,7 +212,7 @@ process_data_file(
   },
   undef,
   $orderHeaderMap
-) if (0);
+);
 
 $orderHeaderMap = {
   'Branch' => 'BranchName',
@@ -221,62 +227,59 @@ $orderHeaderMap = {
   'Start Date' => 'ProgramStartDate',
 };
 
-foreach my $branchFile (qw( Atrium EastButler Fairfield Fitton Middletown )) {
-  process_data_file(
-    'data/Camp' . $branchFile . '.csv',
-    sub {
-      my $values = shift;
-      # dd($values);
+process_data_file(
+  'data/CampOrders.csv',
+  sub {
+    my $values = shift;
 
-      $values->{'OrderNo'} = $orderNo++;
+    $values->{'OrderNo'} = $orderNo++;
 
-      $values->{'Cycle'} = '';
-      $values->{'ProgramEndDate'} = '';
-      $values->{'ReceiptNumber'} = '';
-      
-      $values->{'ProgramEndDate'} = UnixDate(
-        DateCalc(ParseDate($values->{'ProgramStartDate'}), '+ 5 days'), 
-        '%Y-%m-%d'
-      );
-      
-      $values->{'DatePaid'} = $values->{'DateEnrolled'};
+    $values->{'Cycle'} = '';
+    $values->{'ProgramEndDate'} = '';
+    $values->{'ReceiptNumber'} = '';
+    
+    $values->{'ProgramEndDate'} = UnixDate(
+      DateCalc(ParseDate($values->{'ProgramStartDate'}), '+ 5 days'), 
+      '%Y-%m-%d'
+    );
+    
+    $values->{'DatePaid'} = $values->{'DateEnrolled'};
 
-      $values->{'PerMemberId'} = lookup_id($values->{'ParticipantId'});
-      $values->{'PerBillableMemberId'} = lookup_id($values->{'PrimarySponsorId'});
+    $values->{'PerMemberId'} = lookup_id($values->{'ParticipantId'});
+    $values->{'PerBillableMemberId'} = lookup_id($values->{'PrimarySponsorId'});
 
-      $values->{'OrderDate'} = UnixDate($values->{'DateEnrolled'}, '%Y-%m-%d');
-      $values->{'StatusDate'} = $values->{'OrderDate'};
+    $values->{'OrderDate'} = UnixDate($values->{'DateEnrolled'}, '%Y-%m-%d');
+    $values->{'StatusDate'} = $values->{'OrderDate'};
 
-      $values->{'Balance'} =~ s/[\$,]//g;
-      $values->{'ProgramFee'} =~ s/[\$,]//g;
+    $values->{'Balance'} =~ s/[\$,]//g;
+    $values->{'ProgramFee'} =~ s/[\$,]//g;
 
-      $values->{'FeePaid'} = $values->{'ProgramFee'} - $values->{'Balance'};
+    $values->{'FeePaid'} = $values->{'ProgramFee'} - $values->{'Balance'};
 
-      $values->{'ProductCode'} = lookup_product_code('camp', $values);
+    $values->{'ProductCode'} = lookup_product_code('camp', $values);
 
-      unless ($values->{'ProductCode'}) {
-        write_record($noProductCodeWorksheet, $noProductRow++, [
-          'camp',
-          $values->{'BranchName'},
-          '',
-          $values->{'ProgramDescription'},
-          $values->{'ItemDescription'},
-          $values->{'Session'}
-        ]);
+    unless ($values->{'ProductCode'}) {
+      write_record($noProductCodeWorksheet, $noProductRow++, [
+        'camp',
+        $values->{'BranchName'},
+        '',
+        $values->{'ProgramDescription'},
+        $values->{'ItemDescription'},
+        $values->{'Session'}
+      ]);
 
-        return;     
-      }
+      return;     
+    }
 
-      my $record = make_record($values, \@allColumns, $columnMap);
-      write_record($worksheet, $order++, $record);
+    my $record = make_record($values, \@allColumns, $columnMap);
+    write_record($worksheet, $order++, $record);
 
-      $record = make_record($values, [program_order_fields()], make_column_map([program_order_fields()]));
-      $csv->print($programMaster, $record);
-    },
-    undef,
-    $orderHeaderMap
-  ) if (0);
-}
+    $record = make_record($values, [program_order_fields()], make_column_map([program_order_fields()]));
+    $csv->print($programMaster, $record);
+  },
+  undef,
+  $orderHeaderMap
+);
 
 close($programMaster);
 

@@ -12,6 +12,14 @@ use Excel::Writer::XLSX;
 use Text::CSV_XS;
 use Date::Manip;
 use Term::ProgressBar;
+use DBI;
+
+my $dbh = DBI->connect('dbi:SQLite:dbname=db/ymca.db','','');
+
+$dbh->do(q{
+  delete from access
+  });
+
 
 my $cusIndTemplateName = 'DCT_CUS_INDIVIDUAL';
 
@@ -147,7 +155,7 @@ my @addrLnkAllColumns = get_template_columns($addrLnkTemplateName);
 my $addrLnkWorkbook = make_workbook($addrLnkTemplateName);
 my $addrLnkWorksheet = make_worksheet($addrLnkWorkbook, \@addrLnkAllColumns);
 
-my $csv = Text::CSV_XS->new ({ auto_diag => 1 });
+my $csv = Text::CSV_XS->new ({ auto_diag => 1, eol => $/ });
 
 my $members = {};
 my $families = {};
@@ -156,15 +164,12 @@ my $noFamily = [];
 process_customer_file(
   sub {
     my $values = shift;
-    
-    # return unless ($values->{'FamilyId'} eq 'F152136702');
+
+    # return unless ($values->{'FamilyId'} eq 'F164591628');
     # return unless ($values->{'TrxEmail'} eq 'lljennings99@gmail.com');
-    # dump($values); exit;
     
     $members->{$values->{'MemberId'}} = $values;
 
-    return unless (is_member($values));
-    
     # Camp members who do not need to be loaded
     unless ($values->{'FamilyId'}) {
       push(@{$noFamily}, {
@@ -180,98 +185,74 @@ process_customer_file(
   }
 );
 
-# Put non-members into families
-print "Processing non-members\n";
-my $progress = Term::ProgressBar->new({ 'count' => scalar(keys %{$members}) });
-my $count = 1;
-my $overSubscribedFamilies = {};
-foreach my $memberId (keys %{$members}) {
-  $progress->update($count++);
-  my $member = $members->{$memberId};
-  next if (is_member($member));
-
-  # if the family exists, assign the first membership type
-  # and primary ID to this non-member
-  if (exists($families->{$member->{'FamilyId'}})) {
-    my @familyTypes = keys $families->{$member->{'FamilyId'}};
-    
-    $member->{'OverSubscribed'} = 0;
-    if (@familyTypes > 1) {
-      $overSubscribedFamilies->{$member->{'FamilyId'}} =
-        $families->{$member->{'FamilyId'}};
-      $member->{'OverSubscribed'} = 1;
-      next;
-    }
-
-    $member->{'MembershipType'} = $familyTypes[0];
-    $member->{'BillableMemberId'} 
-      = $families->{$member->{'FamilyId'}}{$member->{'MembershipType'}}{'PrimaryId'};
-  }
-
-  addToFamilies($member, $families, $conflicts);
-}
-
 # Find families with no primary and use oldest member
 print "Processing primary family members\n";
-$progress = Term::ProgressBar->new({ 'count' => scalar(keys %{$families}) });
-$count = 1;
+my $progress = Term::ProgressBar->new({ 'count' => scalar(keys %{$families}) });
+my $count = 1;
 
 my $primaryByBillable = 0;
 my $primaryByBirth = 0;
 my $missingPrimary = 0;
 my $familyCount = 0;
 foreach my $familyId (keys %{$families}) {
-  foreach my $membershipType (keys %{$families->{$familyId}}) {
-    $progress->update($count++);
-    $familyCount++;
+  # if family has primary, then it was billable
+  $progress->update($count++);
+  $familyCount++;
 
-    my $family = $families->{$familyId}{$membershipType};
+  my $family = $families->{$familyId};
 
-    if ($family->{'PrimaryId'}) {
-      $primaryByBillable++;
-    } else {
-      my $familyMembers = [];
-      foreach my $memberId (@{$family->{'Members'}}) {
-        push(@{$familyMembers}, $members->{$memberId});
-      }
-
-      my $oldestMember = oldestMember($familyMembers);
-
-      $family->{'PrimaryId'} = $oldestMember->{'MemberId'};
-      $primaryByBirth++ if ($family->{'PrimaryId'});
+  if ($family->{'PrimaryId'}) {
+    $primaryByBillable++;
+  } elsif (scalar(@{$family->{'AllMembers'}}) == 1) {
+    $family->{'PrimaryId'} = $family->{'AllMembers'}[0];
+  } else {
+    my @familyTypes = keys %{$family->{'MembershipTypes'}};
+    if (scalar(@familyTypes) != 1) {
+      print "Did not find family primary by billable for $familyId";
+      print Dumper($family);exit;
     }
 
-    die "Unable to find primary for $familyId" unless ($family->{'PrimaryId'});
-
-    $members->{$family->{'PrimaryId'}}{'IsFamilyPrimary'} = 1;
-
-    # Assign email to the primary if they don't have one,
-    # but another family member does. In the case of changing
-    # family email that goes into Personify, we will also
-    # change the TRX email data and not worry about fixing it.
-    unless ($members->{$family->{'PrimaryId'}}{'Email'}) {
-      foreach my $familyMemberId (sort @{$family->{'Members'}}) {
-        $members->{$family->{'PrimaryId'}}{'Email'}
-          = $members->{$familyMemberId}{'Email'};
-        $members->{$family->{'PrimaryId'}}{'EmailLocationCode'}
-          = $members->{$familyMemberId}{'EmailLocationCode'};
-        $members->{$family->{'PrimaryId'}}{'TrxEmail'}
-          = $members->{$familyMemberId}{'TrxEmail'};
-        last if ($members->{$family->{'PrimaryId'}}{'Email'});
-      }
+    my $familyMembers = [];
+    foreach my $memberId (@{$family->{'MembershipTypes'}{$familyTypes[0]}}) {
+      push(@{$familyMembers}, $members->{$memberId});
     }
 
-    # Remove the email from any other family members. This will
-    # stomp any any family member's own email, but there is no
-    # way to be completely accurate. The choice is to prefer
-    # the primary.
-    if ($members->{$family->{'PrimaryId'}}{'Email'}) {
-      foreach my $familyMemberId (@{$family->{'Members'}}) {
-        next if ($familyMemberId eq $family->{'PrimaryId'});
-        $members->{$familyMemberId}{'Email'} = '';
-        $members->{$familyMemberId}{'TrxEmail'} = '';
-        $members->{$familyMemberId}{'EmailLocationCode'} = '';
-      }
+    my $oldestMember = oldestMember($familyMembers);
+
+    $family->{'PrimaryId'} = $oldestMember->{'MemberId'};
+    $primaryByBirth++ if ($family->{'PrimaryId'});
+  }
+
+  die "Unable to find primary for $familyId" unless ($family->{'PrimaryId'});
+
+  $members->{$family->{'PrimaryId'}}{'IsFamilyPrimary'} = 1;
+
+  # Assign email to the primary if they don't have one,
+  # but another family member does. In the case of changing
+  # family email that goes into Personify, we will also
+  # change the TRX email data and not worry about fixing it.
+  unless ($members->{$family->{'PrimaryId'}}{'Email'}) {
+    foreach my $familyMemberId (sort @{$family->{'AllMembers'}}) {
+      $members->{$family->{'PrimaryId'}}{'Email'}
+        = $members->{$familyMemberId}{'Email'};
+      $members->{$family->{'PrimaryId'}}{'EmailLocationCode'}
+        = $members->{$familyMemberId}{'EmailLocationCode'};
+      $members->{$family->{'PrimaryId'}}{'TrxEmail'}
+        = $members->{$familyMemberId}{'TrxEmail'};
+      last if ($members->{$family->{'PrimaryId'}}{'Email'});
+    }
+  }
+
+  # Remove the email from any other family members. This will
+  # stomp on any family member's own email, but there is no
+  # way to be completely accurate. The choice is to prefer
+  # the primary.
+  if ($members->{$family->{'PrimaryId'}}{'Email'}) {
+    foreach my $familyMemberId (@{$family->{'AllMembers'}}) {
+      next if ($familyMemberId eq $family->{'PrimaryId'});
+      $members->{$familyMemberId}{'Email'} = '';
+      $members->{$familyMemberId}{'TrxEmail'} = '';
+      $members->{$familyMemberId}{'EmailLocationCode'} = '';
     }
   }
 }
@@ -301,39 +282,6 @@ NOFAMILY: {
     write_record($noFamilyWorksheet, $row + 1, [
       $noFamily->[$row]{'MemberId'},
     ]);
-  }
-}
-
-OVERSUBSCRIBED: {
-  my $maxTypes = 0;
-  foreach my $familyId (keys %{$overSubscribedFamilies}) {
-    $maxTypes = (keys %{$overSubscribedFamilies->{$familyId}})
-      if ((keys %{$overSubscribedFamilies->{$familyId}}) > $maxTypes);
-  }
-
-  my $columns = ['FamilyId'];
-  for my $i (1..$maxTypes) {
-    push(@{$columns}, "PrimaryId $i", "Membership Type $i");
-  }
-
-  my $overSubWorkbook = make_workbook('over_subscribed');
-  my $overSubWorksheet = make_worksheet($overSubWorkbook, $columns);
-
-  my $row = 1;
-  foreach my $familyId (keys %{$overSubscribedFamilies}) {
-    my $values = [
-      $familyId,
-    ];
-
-    foreach my $type (keys %{$overSubscribedFamilies->{$familyId}}) {
-      push(
-        @{$values}, 
-        $overSubscribedFamilies->{$familyId}{$type}{'PrimaryId'},
-        $type
-      );
-    }
-
-    write_record($overSubWorksheet, $row++, $values);
   }
 }
 
@@ -415,6 +363,15 @@ print "Generating customer files\n";
 $progress = Term::ProgressBar->new({ 'count' => scalar(keys %{$members}) });
 $count = 1;
 
+open(my $assocMaster, '>', 'data/assoc_orders.csv')
+  or die "Couldn't open data/assoc_orders.csv: $!";
+$csv->print($assocMaster, [qw(
+    MemberId
+    FamilyId
+    BillingMemberId
+    MembershipType
+  )]);
+
 my $customerProblemsWorkbook = make_workbook('customer_problems');
 my $customerProblemsWorksheet = make_worksheet($customerProblemsWorkbook, 
   ['MemberId', 'FamilyId', 'Problem']);
@@ -427,29 +384,38 @@ foreach my $memberId (keys %{$members}) {
   $progress->update($count++);
   my $member = $members->{$memberId};
 
-  # next unless ($member->{'FamilyId'} eq 'F161136482');
+  # next unless ($member->{'FamilyId'} eq 'F164591628');
   # print Dumper($member, $families->{$member->{'FamilyId'}});exit;
 
   next if ($member->{'OverSubscribed'});
 
-  my $isMember = is_member($member);
-  
   if ($member->{'Email'}) {
     $emailCheck->{$member->{'Email'}}++;
     print "$member->{'Email'} still duplicated\n"
       if ($emailCheck->{$member->{'Email'}} > 1);
   }
 
-  my $family = $families->{$member->{'FamilyId'}}{uc $member->{'MembershipType'}};
+  # These are camp people and reported earlier
+  unless ($member->{'FamilyId'}) {
+    next;
+  }
+
+  unless ($families->{$member->{'FamilyId'}}) {
+    print "Missing family for member family id\n";
+    dd($member);
+  }
+
+  my $family = $families->{$member->{'FamilyId'}};
+  
   my $primaryMember = $members->{$family->{'PrimaryId'}};
-  my $isPrimary = $isMember && $member->{'MemberId'} eq $family->{'PrimaryId'};
+  my $isPrimary = $member->{'IsMember'} && $member->{'MemberId'} eq $family->{'PrimaryId'};
 
   $member->{'CurrentDate'} = $currentDate;
 
   # These Primary fields are only to filled in with primary member values
   $member->{'PrimaryId'} = $primaryMember->{'MemberId'};
   $member->{'PerPrimaryId'} = $primaryMember->{'PerMemberId'};
-  $member->{'PrimaryAddress1'} = 'NOT AVAILABLE';
+  $member->{'PrimaryAddress1'} = '';
   $member->{'PrimaryAddress2'} = '';
   $member->{'PrimaryCity'} = '';
   $member->{'PrimaryState'} = '';
@@ -471,6 +437,15 @@ foreach my $memberId (keys %{$members}) {
     $member->{'PrimaryAddressTypeCode'} = $member->{'AddressTypeCode'};
     $member->{'PrimaryAddressStatusCode'} = $member->{'AddressStatusCode'};
   }
+
+  # determine access allowed
+  $member->{'AccessDenied'} = 'Allow';
+  $member->{'AccessDenied'} = 'Deny' if ($member->{'Address1'} =~ /(access|allow|entry)/i);
+  $dbh->do(q{
+    insert into access (t_id, p_id, access, reason)
+      values (?, ?, ?, ?)
+    }, undef, $member->{'MemberId'}, $member->{'PerMemberId'}, $member->{'AccessDenied'},
+      ($member->{'AccessDenied'} eq 'Deny' ? $member->{'Address1'} : ''));
 
   if ($member->{'PrimaryAddress1'} ne 'NOT AVAILABLE' && !$member->{'PrimaryCountry'}) {
     write_record($customerProblemsWorksheet, $problemRow++, [
@@ -500,7 +475,17 @@ foreach my $memberId (keys %{$members}) {
 
   write_record($cusIndWorksheet, $indRow++, $cusIndRecord);
 
-  if ($isMember && !$isPrimary) {
+  if ($member->{'IsMember'} && !$isPrimary) {
+    # Record this member's billable id and membership type for order assoc
+    $csv->print($assocMaster, [
+      $member->{'PerMemberId'},
+      $member->{'FamilyId'},
+      $member->{'PerBillableMemberId'},
+      $member->{'MembershipType'},
+      ]);
+  }
+
+  unless ($isPrimary) {
     my $cusRelRecord = make_record($member, \@cusRelAllColumns, $cusRelColumnMap);
     write_record($cusRelWorksheet, $lnkRow, $cusRelRecord);
 
@@ -558,26 +543,26 @@ sub addToFamilies {
   my $membershipType = uc $values->{'MembershipType'};
 
   unless (exists($families->{$familyId})) {
-    $families->{$familyId} = {};    
+    $families->{$familyId} = {
+      'PrimaryId' => '',
+      'AllMembers' => [],
+      'MembershipTypes' => {},
+    };    
   };
 
-  unless (exists($families->{$familyId}{$membershipType})) {
-    $families->{$familyId}{$membershipType} = {
-      'PrimaryId' => '',
-      'Members' => [],
-    };
+  unless (exists($families->{$familyId}{'MembershipTypes'}{$membershipType})) {
+    $families->{$familyId}{'MembershipTypes'}{$membershipType} = [];
   }
 
-  my $family = $families->{$familyId}{$membershipType};
-
-  push(@{$family->{'Members'}}, $values->{'MemberId'});
+  push(@{$families->{$familyId}{'MembershipTypes'}{$membershipType}}, $values->{'MemberId'});
+  push(@{$families->{$familyId}{'AllMembers'}}, $values->{'MemberId'});
   
-  if (billable_member($values)) {
-    if ($family->{'PrimaryId'} && 
-        $family->{'PrimaryId'} ne $values->{'MemberId'}) {
-      # compare($values, $members->{$family->{'PrimaryId'}});
+  if ($values->{'BillableMemberId'} eq $values->{'MemberId'}) {
+    if ($families->{$familyId}{'PrimaryId'} && 
+        $families->{$familyId}{'PrimaryId'} ne $values->{'MemberId'}) {
+      # compare($values, $members->{$families->{$familyId}{'PrimaryId'}});
       # exit;
-      my $conflictedMember = $members->{$family->{'PrimaryId'}};
+      my $conflictedMember = $members->{$families->{$familyId}{'PrimaryId'}};
       push(@{$conflicts}, {
         'FamilyId' => $familyId,
         'A-MemberId' => $values->{'MemberId'},
@@ -590,6 +575,6 @@ sub addToFamilies {
       return;
     } 
 
-    $family->{'PrimaryId'} = $values->{'MemberId'};
+    $families->{$familyId}{'PrimaryId'} = $values->{'MemberId'};
   }
 }

@@ -132,6 +132,7 @@ my $branchProgramCodes = branch_name_map();
 my $cycleDurations = {
   'Annual' => '1 year',
   'Monthly E-Pay' => '1 month',
+  'Monthly' => '1 month',
   'Quarterly' => '3 months',
 };
 
@@ -182,6 +183,7 @@ our $orderProblemsWorksheet = make_worksheet($orderProblemsWorkbook,
   ['Source', 'Bill Id', 'Description', 'Problem']);
 our $orderProblemRow = 1;
 
+my $denyEndDate = UnixDate('12-31-2099', '%Y-%m-%d');
 my $missingMembershipMap = {};
 my $row = 1;
 process_data_file(
@@ -221,18 +223,14 @@ process_data_file(
 
     $values->{'FullfillStatusDate'} = $values->{'OrderDate'};
 
-    my $orderDate = ParseDate($values->{'OrderDate'});
-    $values->{'BeginDate'} = UnixDate($orderDate, '%Y-%m-%d');
-    my $cycle = $cycleDurations->{$values->{'PaymentMethod'}};
-    $values->{'EndDate'} = UnixDate(DateCalc(DateCalc($orderDate, '+' . $cycle), '-1 day'), '%Y-%m-%d');
-
     $values->{'TrxInvoiceId'} = '';
     $values->{'ProductCode'} = '';
     $values->{'RateCode'} = '';
+    $values->{'MarketCode'} = '';
     $values->{'DiscountAmount'} = 0;
     $values->{'DiscountCode'} = '';
 
-    my $discount = '';
+    my $discount = 0;
     if (exists($membershipMap->{$membershipTypeKey}) 
         && exists($membershipMap->{$membershipTypeKey}{$paymentMethodKey})) {
       my $map = $membershipMap->{$membershipTypeKey}{$paymentMethodKey};
@@ -256,17 +254,26 @@ process_data_file(
       $values->{'DiscountCode'} = 'SPONSOR' . $values->{'SponsorDiscount'};
       $discount = $values->{'SponsorDiscount'} . '%';
     }
-
-    $missingMembershipMap->{$membershipTypeKey}{$paymentMethodKey}++ unless ($values->{'RateCode'});
-
-    my $baseFee = $values->{'RenewMembershipFee'};
+    
+    my $baseFee = $values->{'RenewMembershipFee'} || 0;
 
     if ($membershipTypeKey =~ /PRD/) {
       (my $prd = $membershipTypeKey) =~ s/\-.*//;
-      die "Missing PRD mapping for $prd {$values->{'RateCode'}" 
-        unless (exists($prdRates->{$prd}{$values->{'RateCode'}}));
+      $values->{'RateCode'} = 'Monthly';
+      $values->{'PaymentMethod'} = 'Monthly';
+      unless (exists($prdRates->{$prd}{$values->{'RateCode'}})) {
+        print "Missing PRD mapping for '$prd' $values->{'RateCode'}\n";
+        dd($values);
+      }
       $baseFee = $prdRates->{$prd}{$values->{'RateCode'}};
     }
+
+    $missingMembershipMap->{$membershipTypeKey}{$paymentMethodKey}++ unless ($values->{'RateCode'});
+
+    my $orderDate = ParseDate($values->{'OrderDate'});
+    $values->{'BeginDate'} = UnixDate($orderDate, '%Y-%m-%d');
+    my $cycle = $cycleDurations->{$values->{'PaymentMethod'}};    
+    $values->{'EndDate'} = UnixDate(DateCalc(DateCalc($orderDate, '+' . $cycle), '-1 day'), '%Y-%m-%d');
 
     $values->{'DiscountAmount'} = 0;
     if ($discount =~ /\%/) {
@@ -287,6 +294,11 @@ process_data_file(
 
     $values->{'TotalAmount'} = $finalFee + $values->{'TaxPaidAmount'};
     $values->{'PaymentAmount'} = $values->{'TotalAmount'};
+
+    if ($values->{'AccessDenied'} eq 'Deny') {
+      $values->{'ProductCode'} = 'AS_GMV_SO_SO';
+      $values->{'EndDate'} = $denyEndDate;
+    }
 
     check_order_errors('Memberships', $values);
     
