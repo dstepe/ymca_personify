@@ -168,7 +168,7 @@ process_customer_file(
   sub {
     my $values = shift;
 
-    # return unless ($values->{'FamilyId'} eq 'F164591628');
+    # return unless ($values->{'FamilyId'} eq 'F148152631');
     # return unless ($values->{'TrxEmail'} eq 'lljennings99@gmail.com');
     
     $members->{$values->{'MemberId'}} = $values;
@@ -204,7 +204,7 @@ foreach my $familyId (keys %{$families}) {
 
   my $family = $families->{$familyId};
 
-  if ($family->{'PrimaryId'}) {
+  if ($family->{'PrimaryId'} && $family->{'MemberFamily'}) {
     $primaryByBillable++;
   } elsif (scalar(@{$family->{'AllMembers'}}) == 1) {
     $family->{'PrimaryId'} = $family->{'AllMembers'}[0];
@@ -411,7 +411,7 @@ foreach my $memberId (keys %{$members}) {
   my $family = $families->{$member->{'FamilyId'}};
   
   my $primaryMember = $members->{$family->{'PrimaryId'}};
-  my $isPrimary = $member->{'IsMember'} && $member->{'MemberId'} eq $family->{'PrimaryId'};
+  my $isPrimary = $member->{'MemberId'} eq $family->{'PrimaryId'};
 
   $member->{'CurrentDate'} = $currentDate;
 
@@ -553,6 +553,7 @@ sub addToFamilies {
   unless (exists($families->{$familyId})) {
     $families->{$familyId} = {
       'PrimaryId' => '',
+      'MemberFamily' => 0,
       'AllMembers' => [],
       'MembershipTypes' => {},
     };    
@@ -584,5 +585,6 @@ sub addToFamilies {
     } 
 
     $families->{$familyId}{'PrimaryId'} = $values->{'MemberId'};
+    $families->{$familyId}{'MemberFamily'} = is_member($values);
   }
 }
