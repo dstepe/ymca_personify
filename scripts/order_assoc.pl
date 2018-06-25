@@ -54,17 +54,31 @@ my $familyOrders = {};
 my $progress = Term::ProgressBar->new({ 'count' => $totalRows });
 my $row = 1;
 my $count = 1;
+my $skipped = {};
 while(my $rowIn = $csv->getline($ordersFile)) {
 
   $progress->update($count++);
 
   my $values = map_values($headers, $rowIn);
 
-  next unless (exists($assocOrder->{$values->{'PerBillableMemberId'}}));
-  next unless (exists($assocOrder->{$values->{'PerBillableMemberId'}}{$values->{'FamilyId'}}));
-  next unless (exists($assocOrder->{$values->{'PerBillableMemberId'}}{$values->{'FamilyId'}}{$values->{'MembershipTypeDes'}}));
+  next if ($values->{'PerMemberId'} eq $values->{'PerBillableMemberId'});
 
-  my $assocMembers = $assocOrder->{$values->{'PerBillableMemberId'}}{$values->{'FamilyId'}}{$values->{'MembershipTypeDes'}};
+  my $membershipType = uc $values->{'MembershipTypeDes'};
+
+  unless (exists($assocOrder->{$values->{'PerBillableMemberId'}})) {
+    $skipped->{'Billiable not found'}++;
+    next;
+  }
+  unless (exists($assocOrder->{$values->{'PerBillableMemberId'}}{$values->{'FamilyId'}})) {
+    $skipped->{'Family not found'}++;
+    next;
+  }
+  unless (exists($assocOrder->{$values->{'PerBillableMemberId'}}{$values->{'FamilyId'}}{$membershipType})) {
+    $skipped->{'Membership not found'}{$membershipType}++;
+    next;
+  }
+
+  my $assocMembers = $assocOrder->{$values->{'PerBillableMemberId'}}{$values->{'FamilyId'}}{$membershipType};
 
   foreach my $assocMember (@{$assocMembers}) {
     my $record = {
@@ -81,6 +95,7 @@ while(my $rowIn = $csv->getline($ordersFile)) {
 
 }
 close($ordersFile);
+print Dumper($skipped) if (%{$skipped});
 
 # $row = 1;
 # process_customer_file(
