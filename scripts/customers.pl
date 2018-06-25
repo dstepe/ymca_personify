@@ -445,10 +445,10 @@ foreach my $memberId (keys %{$members}) {
   $member->{'AccessDenied'} = 'Allow';
   $member->{'AccessDenied'} = 'Deny' if ($member->{'Address1'} =~ /(access|allow|entry)/i);
   $dbh->do(q{
-    insert into access (t_id, p_id, access, reason)
-      values (?, ?, ?, ?)
+    insert into access (t_id, p_id, access, reason, order_created)
+      values (?, ?, ?, ?, ?)
     }, undef, $member->{'MemberId'}, $member->{'PerMemberId'}, $member->{'AccessDenied'},
-      ($member->{'AccessDenied'} eq 'Deny' ? $member->{'Address1'} : ''));
+      ($member->{'AccessDenied'} eq 'Deny' ? $member->{'Address1'} : ''), 0);
 
   if ($member->{'PrimaryAddress1'} ne 'NOT AVAILABLE' && !$member->{'PrimaryCountry'}) {
     write_record($customerProblemsWorksheet, $problemRow++, [

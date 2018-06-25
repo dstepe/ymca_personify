@@ -88,6 +88,10 @@ open(my $orderMaster, '>', 'data/member_orders.csv')
   or die "Couldn't open data/member_orders.csv: $!";
 $csv->print($orderMaster, [member_order_fields()]);
 
+$dbh->do(q{
+  update access set order_created = ?
+  }, undef, 0);
+
 my $types = {};
 my $unmappedMembers = [];
 
@@ -133,6 +137,13 @@ process_data_file(
         where p_id = ?
       }, undef, $values->{'PerMemberId'});
 
+    if ($values->{'AccessDenied'} eq 'Deny') {
+      $dbh->do(q{
+        update access set order_created = ?
+          where p_id = ?
+        }, undef, 1, $values->{'PerMemberId'});
+    }
+
     my $record = make_record($values, \@allColumns, $columnMap);
     write_record($worksheet, $order++, $record);
 
@@ -140,6 +151,54 @@ process_data_file(
     $csv->print($orderMaster, $record);
   }
 );
+
+# Generate orders for access denied that do not have current orders
+my $sth = $dbh->prepare(q{
+  select t_id, p_id
+    from access
+    where order_created <> 1
+      and access = 'Deny'
+  });
+
+$sth->execute();
+
+my $currentDate = UnixDate(ParseDate('today'), '%Y-%m-%d');
+
+while (my($denyForTid, $denyForPid) = $sth->fetchrow_array()) {
+  my $values = {
+    'AccessDenied' => 'Deny',
+    'BranchCode' => '',
+    'CompanyName' => '',
+    'CurrentMembershipFee' => 0,
+    'FamilyId' => '',
+    'JoinDate' => $currentDate,
+    'MemberId' => $denyForTid,
+    'MembershipBranch' => 'Metropolitan',
+    'MembershipTotal' => 0,
+    'MembershipTypeDes' => 'Access Denied',
+    'NextBillDate' => '12/31/2099',
+    'OrderDate' => $currentDate,
+    'OrderNo' => $orderNo++,
+    'PaymentMethod' => 'Annual',
+    'PerBillableMemberId' => $denyForPid,
+    'PerMemberId' => $denyForPid,
+    'RenewMembershipFee' => 0,
+    'SponsorDiscount' => 0,
+    'StatusDate' => $currentDate,
+  };
+
+  my $record = make_record($values, \@allColumns, $columnMap);
+  write_record($worksheet, $order++, $record);
+
+  $record = make_record($values, [member_order_fields()], make_column_map([member_order_fields()]));
+  $csv->print($orderMaster, $record);
+
+  $dbh->do(q{
+    update access set order_created = ?
+      where p_id = ?
+    }, undef, 1, $denyForTid);
+
+}
 
 close($orderMaster);
 
@@ -411,8 +470,6 @@ $orderHeaderMap = {
   'Total Pledge Amount Due' => 'TotalPledgeAmountDue',
   'Type' => 'Comments',
 };
-
-my $currentDate = UnixDate(ParseDate('today'), '%Y-%m-%d');
 
 open(my $arBalMaster, '>', 'data/arbal_orders.csv')
   or die "Couldn't open data/arbal_orders.csv: $!";

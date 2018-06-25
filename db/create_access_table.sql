@@ -2,7 +2,8 @@ create table access (
   t_id text not null,
   p_id text not null,
   access text,
-  reason text
+  reason text,
+  order_created integer
 );
 
 create index ids_t_id on ids (t_id);
