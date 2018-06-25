@@ -268,8 +268,6 @@ process_data_file(
       $baseFee = $prdRates->{$prd}{$values->{'RateCode'}};
     }
 
-    $missingMembershipMap->{$membershipTypeKey}{$paymentMethodKey}++ unless ($values->{'RateCode'});
-
     my $orderDate = ParseDate($values->{'OrderDate'});
     $values->{'BeginDate'} = UnixDate($orderDate, '%Y-%m-%d');
     my $cycle = $cycleDurations->{$values->{'PaymentMethod'}};    
@@ -297,8 +295,11 @@ process_data_file(
 
     if ($values->{'AccessDenied'} eq 'Deny') {
       $values->{'ProductCode'} = 'AS_GMV_SO_SO';
+      $values->{'RateCode'} = 'Annual';
       $values->{'EndDate'} = $denyEndDate;
     }
+
+    $missingMembershipMap->{$membershipTypeKey}{$paymentMethodKey}++ unless ($values->{'RateCode'});
 
     check_order_errors('Memberships', $values);
     
