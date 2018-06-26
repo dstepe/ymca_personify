@@ -162,13 +162,12 @@ my $csv = Text::CSV_XS->new ({ auto_diag => 1, eol => $/ });
 
 my $members = {};
 my $families = {};
-my $conflicts = [];
 my $noFamily = [];
 process_customer_file(
   sub {
     my $values = shift;
 
-    # return unless ($values->{'FamilyId'} eq 'F148152631');
+    # return unless ($values->{'FamilyId'} eq 'F92348354');
     # return unless ($values->{'TrxEmail'} eq 'lljennings99@gmail.com');
     
     $members->{$values->{'MemberId'}} = $values;
@@ -184,7 +183,7 @@ process_customer_file(
     # We will determine if the member is the primary later.
     $values->{'IsFamilyPrimary'} = 0;
 
-    addToFamilies($values, $families, $conflicts);
+    addToFamilies($values, $families);
   }
 );
 
@@ -211,7 +210,7 @@ foreach my $familyId (keys %{$families}) {
   } else {
     my @familyTypes = keys %{$family->{'MembershipTypes'}};
     if (scalar(@familyTypes) != 1) {
-      print "Did not find family primary by billable for $familyId";
+      print "Did not find family primary by billable for $familyId\n";
       print Dumper($family);exit;
     }
 
@@ -257,24 +256,6 @@ foreach my $familyId (keys %{$families}) {
       $members->{$familyMemberId}{'TrxEmail'} = '';
       $members->{$familyMemberId}{'EmailLocationCode'} = '';
     }
-  }
-}
-
-CONFLICTS: {
-  my $conflictWorkbook = make_workbook('conflicted_primary');
-  my $conflictWorksheet = make_worksheet($conflictWorkbook, 
-    ['FamilyId', 'A MemberId', 'A BillableId', 'A MembershipType', 
-    'B MemberId', 'B BillableId', 'B MembershipType']);
-  for(my $row = 0; $row < scalar(@{$conflicts}); $row++) {
-    write_record($conflictWorksheet, $row + 1, [
-      $conflicts->[$row]{'FamilyId'},
-      $conflicts->[$row]{'A-MemberId'},
-      $conflicts->[$row]{'A-BillableId'},
-      $conflicts->[$row]{'A-MembershipType'},
-      $conflicts->[$row]{'B-MemberId'},
-      $conflicts->[$row]{'B-BillableId'},
-      $conflicts->[$row]{'B-membershipType'},
-    ]);
   }
 }
 
@@ -545,7 +526,6 @@ sub oldestMember {
 sub addToFamilies {
   my $values = shift;
   my $families = shift;
-  my $conflicts = shift;
 
   my $familyId = $values->{'FamilyId'};
   my $membershipType = uc $values->{'MembershipType'};
@@ -553,6 +533,7 @@ sub addToFamilies {
   unless (exists($families->{$familyId})) {
     $families->{$familyId} = {
       'PrimaryId' => '',
+      'PrimaryIndicatorStrength' => 0,
       'MemberFamily' => 0,
       'AllMembers' => [],
       'MembershipTypes' => {},
@@ -565,26 +546,13 @@ sub addToFamilies {
 
   push(@{$families->{$familyId}{'MembershipTypes'}{$membershipType}}, $values->{'MemberId'});
   push(@{$families->{$familyId}{'AllMembers'}}, $values->{'MemberId'});
-  
-  if ($values->{'BillableMemberId'} eq $values->{'MemberId'}) {
-    if ($families->{$familyId}{'PrimaryId'} && 
-        $families->{$familyId}{'PrimaryId'} ne $values->{'MemberId'}) {
-      # compare($values, $members->{$families->{$familyId}{'PrimaryId'}});
-      # exit;
-      my $conflictedMember = $members->{$families->{$familyId}{'PrimaryId'}};
-      push(@{$conflicts}, {
-        'FamilyId' => $familyId,
-        'A-MemberId' => $values->{'MemberId'},
-        'A-BillableId' => $values->{'BillableMemberId'},
-        'A-MembershipType' => $values->{'MembershipType'},
-        'B-MemberId' => $conflictedMember->{'MemberId'},
-        'B-BillableId' => $conflictedMember->{'BillableMemberId'},
-        'B-membershipType' => $conflictedMember->{'MembershipType'},
-      });
-      return;
-    } 
 
-    $families->{$familyId}{'PrimaryId'} = $values->{'MemberId'};
-    $families->{$familyId}{'MemberFamily'} = is_member($values);
-  }
+  my $indicatorStrength = is_member($values) ? 10 : 5;
+  $indicatorStrength += 5 if ($values->{'BillableMemberId'} eq $values->{'MemberId'});
+
+  return unless ($indicatorStrength > $families->{$familyId}{'PrimaryIndicatorStrength'});
+
+  $families->{$familyId}{'PrimaryId'} = $values->{'MemberId'};
+  $families->{$familyId}{'PrimaryIndicatorStrength'} = $indicatorStrength;
+  $families->{$familyId}{'MemberFamily'} = is_member($values);
 }
