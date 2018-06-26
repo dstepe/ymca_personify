@@ -209,7 +209,7 @@ foreach my $familyId (keys %{$families}) {
     $family->{'PrimaryId'} = $family->{'AllMembers'}[0];
   } else {
     my @familyTypes = keys %{$family->{'MembershipTypes'}};
-    if (scalar(@familyTypes) != 1) {
+    if ($family->{'MemberFamily'} && scalar(@familyTypes) != 1) {
       print "Did not find family primary by billable for $familyId\n";
       print Dumper($family);exit;
     }
@@ -547,7 +547,11 @@ sub addToFamilies {
   push(@{$families->{$familyId}{'MembershipTypes'}{$membershipType}}, $values->{'MemberId'});
   push(@{$families->{$familyId}{'AllMembers'}}, $values->{'MemberId'});
 
+  # Membership is a stronger indicator than not being a member
   my $indicatorStrength = is_member($values) ? 10 : 5;
+  # But 'non-member' is less strong than program participant
+  $indicatorStrength -= 3 if (lc $values->{'MembershipType'} eq 'non-member');
+  # And being the billiable is also strong, but not within non-members
   $indicatorStrength += 5 if ($values->{'BillableMemberId'} eq $values->{'MemberId'});
 
   return unless ($indicatorStrength > $families->{$familyId}{'PrimaryIndicatorStrength'});
