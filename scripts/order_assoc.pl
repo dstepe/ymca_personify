@@ -61,6 +61,7 @@ while(my $rowIn = $csv->getline($ordersFile)) {
 
   my $values = map_values($headers, $rowIn);
 
+  # Primary members are part of the main order and not added here
   next if ($values->{'PerMemberId'} eq $values->{'PerBillableMemberId'});
 
   my $membershipType = uc $values->{'MembershipTypeDes'};

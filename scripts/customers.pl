@@ -466,7 +466,7 @@ foreach my $memberId (keys %{$members}) {
 
   write_record($cusIndWorksheet, $indRow++, $cusIndRecord);
 
-  if ($member->{'IsMember'} && !$isPrimary) {
+  if ($member->{'IsMember'}) {
     # Record this member's billable id and membership type for order assoc
     $csv->print($assocMaster, [
       $member->{'PerMemberId'},

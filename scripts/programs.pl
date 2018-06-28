@@ -488,7 +488,7 @@ sub clean_program_values {
   if ($values->{'WeekDays'} && $values->{'WeekDays'} !~ /^(mon|tue|wed|thu|fri|sat|sun)/i &&
       !(skip_program($values->{'ProgramDescription'}) || skip_cycle($values->{'ProgramType'}))) {
     print "Can't translate $values->{'WeekDays'}\n";
-    exit;
+    $values->{'WeekDays'} = '';
   }
   my @daysOfWeek = split(',', lc $values->{'WeekDays'});
 
