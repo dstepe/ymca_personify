@@ -361,6 +361,7 @@ my $customerProblemsWorksheet = make_worksheet($customerProblemsWorkbook,
   ['MemberId', 'FamilyId', 'Problem']);
 my $problemRow = 1;
 
+my $checkCounts = {};
 my $emailCheck = {};
 my $indRow = 1;
 my $lnkRow = 1;
@@ -370,8 +371,6 @@ foreach my $memberId (keys %{$members}) {
 
   # next unless ($member->{'FamilyId'} eq 'F164591628');
   # print Dumper($member, $families->{$member->{'FamilyId'}});exit;
-
-  next if ($member->{'OverSubscribed'});
 
   if ($member->{'Email'}) {
     $emailCheck->{$member->{'Email'}}++;
@@ -422,6 +421,7 @@ foreach my $memberId (keys %{$members}) {
     $member->{'PrimaryAddressStatusCode'} = $member->{'AddressStatusCode'};
   }
 
+
   # determine access allowed
   $member->{'AccessDenied'} = 'Allow';
   $member->{'AccessDenied'} = 'Deny' if ($member->{'Address1'} =~ /(access|allow|entry)/i);
@@ -459,6 +459,8 @@ foreach my $memberId (keys %{$members}) {
     insert into name_map (p_id, c_name)
       values (?, ?)
     }, undef, $member->{'PerMemberId'}, $member->{'FormalName'});
+
+  $checkCounts->{'AccessDenied'}++ if ($member->{'AccessDenied'} eq 'Deny');
 
   my $cusIndRecord = make_record($member, \@cusIndAllColumns, $cusIndColumnMap);
 
