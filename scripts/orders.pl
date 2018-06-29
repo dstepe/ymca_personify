@@ -534,6 +534,12 @@ sub lookup_product_code {
         and session = ?
       } if ($type eq 'camp');
 
+  if ($values->{'Cycle'} =~ /2018 Summer (\d)/) {
+    $query .= qq{
+          and product_code like '%_M${1}8'
+        };
+  }
+
   my $sth = $dbh->prepare($query);
 
   $sth->bind_param(1, $branchName);

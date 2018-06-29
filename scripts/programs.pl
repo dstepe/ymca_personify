@@ -404,6 +404,10 @@ sub get_product_details {
   $productDetails->{'DepartmentSubClass'} = $codeInfo->{'SubClass'};
   $productDetails->{'Season'} = $codeInfo->{'Season'};
 
+  if ($productDetails->{'Season'} eq 'M18' && $program->{'ProgramType'} =~ /Summer 2/i) {
+    $productDetails->{'Season'} = 'M28';
+  }
+
   my $increment = get_program_increment(
     $program->{'BranchCode'}, 
     $productDetails->{'Department'},
