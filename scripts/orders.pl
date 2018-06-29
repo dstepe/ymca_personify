@@ -487,7 +487,7 @@ foreach my $arFile (qw( Camps Childcare Counter Memberships Programs)) {
 
       $values->{'OrderNo'} = $orderNo++;
 
-      $values->{'ProductCode'} = 'MISC PROD';
+      $values->{'ProductCode'} = 'AR_BAL_CONV';
       $values->{'DatePaid'} = '';
 
       $values->{'StatusDate'} = $values->{'OrderDate'};
