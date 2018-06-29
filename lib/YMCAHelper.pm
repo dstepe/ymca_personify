@@ -23,6 +23,7 @@ our @EXPORT_OK = qw(
   map_values
   make_record
   lookup_id
+  lookup_t_id
   compare
   by_program_start_date
   dump
@@ -55,6 +56,7 @@ our @EXPORT = qw(
   map_values
   make_record
   lookup_id
+  lookup_t_id
   compare
   by_program_start_date
   dump
@@ -204,6 +206,20 @@ sub lookup_id {
   print "Couldn't map $tId\n" unless ($pId);
 
   return $pId;
+}
+
+sub lookup_t_id {
+  my $pId = shift;
+
+  my($tId) = $dbh->selectrow_array(q{
+    select t_id
+      from ids
+      where p_id = ?
+    }, undef, $pId);
+
+  print "Couldn't map $tId\n" unless ($tId);
+
+  return $tId;
 }
 
 sub compare {
