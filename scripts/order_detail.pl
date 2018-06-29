@@ -251,6 +251,7 @@ process_data_file(
     }
     
     if ($membershipTypeKey =~ /SPONSOR/i) {
+      return if ($values->{'SponsorDiscount'} eq '0');
       $values->{'DiscountCode'} = 'SPONSOR' . $values->{'SponsorDiscount'};
       $discount = $values->{'SponsorDiscount'} . '%';
     }
