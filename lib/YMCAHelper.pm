@@ -44,6 +44,7 @@ our @EXPORT_OK = qw(
   skip_program
   skip_cycle
   is_company
+  get_company_by_name
 );
 
 # these are exported by default.
@@ -76,6 +77,7 @@ our @EXPORT = qw(
   skip_program
   skip_cycle
   is_company
+  get_company_by_name
 );
 
 my $csv = Text::CSV_XS->new ({ binary => 1 });
@@ -347,6 +349,34 @@ sub is_company {
     }, undef, $trxId);
 
   return $count;
+}
+
+sub get_company_by_name {
+  my $name = shift;
+
+  my($count) = $dbh->selectrow_array(q{
+    select count(*)
+      from companies
+      where t_id like 'C%'
+        and c_name = ?
+    }, undef, $name);
+
+  my $info = {};
+
+  if ($count == 1) {
+    my($tId, $pId) = $dbh->selectrow_array(q{
+      select t_id, p_id
+        from companies
+        where t_id like 'C%'
+          and c_name = ?
+      }, undef, $name);
+
+    $info->{'name'} = $name;
+    $info->{'t_id'} = $tId;
+    $info->{'p_id'} = $pId;
+  }
+
+  return $info;
 }
 
 sub clean_customer {

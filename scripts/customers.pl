@@ -162,6 +162,27 @@ my @addrLnkAllColumns = get_template_columns($addrLnkTemplateName);
 my $addrLnkWorkbook = make_workbook($addrLnkTemplateName);
 my $addrLnkWorksheet = make_worksheet($addrLnkWorkbook, \@addrLnkAllColumns);
 
+my $corporationsTemplateName = 'DCT_CUS_EMPLOYMENT-53771';
+
+my $corporationsColumnMap = {
+  'CUSTOMER_ID'           => { 'type' => 'record', 'source' => 'PerMemberId' },
+  'TRX_EMP_ID'            => { 'type' => 'record', 'source' => 'MemberId' },
+  'COMPANY_ID'            => { 'type' => 'record', 'source' => 'PerCompanyId' },
+  'TRX_COMP_ID'           => { 'type' => 'record', 'source' => 'CompanyId' },
+  'COMPANY_NAME'          => { 'type' => 'record', 'source' => 'CompanyName' },
+  'EMPLOYEE_JOB_CODE'     => { 'type' => 'static', 'source' => 'EMPLOYEE' },
+  'EMPLOYER_CODE'         => { 'type' => 'static', 'source' => 'EMPLOYER' },
+  'BEGIN_DATE'            => { 'type' => 'record', 'source' => 'StartDate' },
+  'PRIMARY_EMPLOYER_FLAG' => { 'type' => 'static', 'source' => 'Y' },
+  'FULL_TIME_FLAG'        => { 'type' => 'static', 'source' => 'Y' },
+  'PRIMARY_CONTACT_FLAG'  => { 'type' => 'static', 'source' => 'N' },
+};
+
+my @corporationsAllColumns = get_template_columns($corporationsTemplateName);
+
+my $corporationsWorkbook = make_workbook($corporationsTemplateName);
+my $corporationsWorksheet = make_worksheet($corporationsWorkbook, \@corporationsAllColumns);
+
 my $csv = Text::CSV_XS->new ({ auto_diag => 1, eol => $/ });
 
 my $members = {};
@@ -369,6 +390,7 @@ my $checkCounts = {};
 my $emailCheck = {};
 my $indRow = 1;
 my $lnkRow = 1;
+my $employeeRow = 1;
 foreach my $memberId (keys %{$members}) {
   $progress->update($count++);
   my $member = $members->{$memberId};
@@ -425,6 +447,21 @@ foreach my $memberId (keys %{$members}) {
     $member->{'PrimaryAddressStatusCode'} = $member->{'AddressStatusCode'};
   }
 
+  if (is_company_employee($member)) {
+    my $companyInfo = get_company_by_name($member->{'Corporation'});
+    unless (exists($companyInfo->{'t_id'})) {
+      print Dumper($companyInfo);
+      dd($member);
+    }
+
+    $member->{'PerCompanyId'} = $companyInfo->{'p_id'};
+    $member->{'CompanyId'} = $companyInfo->{'t_id'};
+    $member->{'CompanyName'} = $companyInfo->{'name'};
+
+    my $employeeRecord = make_record($member, \@corporationsAllColumns, $corporationsColumnMap);
+    
+    write_record($corporationsWorksheet, $employeeRow++, $employeeRecord);
+  }
 
   # determine access allowed
   $member->{'AccessDenied'} = 'Allow';
@@ -572,4 +609,13 @@ sub addToFamilies {
   $families->{$familyId}{'PrimaryId'} = $values->{'MemberId'};
   $families->{$familyId}{'PrimaryIndicatorStrength'} = $indicatorStrength;
   $families->{$familyId}{'MemberFamily'} = is_member($values);
+}
+
+sub is_company_employee {
+  my $values = shift;
+
+  return 0 unless ($values->{'Corporation'} && $values->{'Corporation'} ne 'Non-Corporate');
+  return 0 if ($values->{'Corporation'} =~ /^xx/i);
+
+  return 1;
 }
