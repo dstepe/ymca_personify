@@ -12,6 +12,9 @@ use Excel::Writer::XLSX;
 use Date::Manip;
 use Text::CSV_XS;
 use Term::ProgressBar;
+use DBI;
+
+my $dbh = DBI->connect('dbi:SQLite:dbname=db/ymca.db','','');
 
 my $templateName = 'DCT_ORDER_MBR_ASSOCIATE-41924';
 
@@ -46,6 +49,12 @@ while(my $rowIn = $csv->getline($assocOrdersFile)) {
 }
 close($assocOrdersFile);
 
+my $memberOrderProblemsWorkbook = make_workbook('memberOrder_problems');
+my $memberOrderProblemsWorksheet = make_worksheet($memberOrderProblemsWorkbook, 
+  ['OrderTrxMemberId', 'OrderPerMemberId', 'FamilyId', 'CustomerTrxFamilyBillable', 
+    'CustomerPerFamilyBillable', 'Problem']);
+my $problemRow = 1;
+
 # For each member order, find any assocs and add them here
 my $ordersFile;
 ($ordersFile, $headers, $totalRows) = open_data_file('data/member_orders.csv');
@@ -54,7 +63,6 @@ my $familyOrders = {};
 my $progress = Term::ProgressBar->new({ 'count' => $totalRows });
 my $row = 1;
 my $count = 1;
-my $skipped = {};
 while(my $rowIn = $csv->getline($ordersFile)) {
 
   $progress->update($count++);
@@ -62,23 +70,45 @@ while(my $rowIn = $csv->getline($ordersFile)) {
   my $values = map_values($headers, $rowIn);
 
   my $membershipType = uc $values->{'MembershipTypeDes'};
+  next if ($values->{'AccessDenied'} eq 'Deny');
 
-  unless (exists($assocOrder->{$values->{'PerBillableMemberId'}})) {
-    $skipped->{'Billiable not found'}++;
-    next;
-  }
-  unless (exists($assocOrder->{$values->{'PerBillableMemberId'}}{$values->{'FamilyId'}})) {
-    $skipped->{'Family not found'}++;
-    next;
-  }
-  unless (exists($assocOrder->{$values->{'PerBillableMemberId'}}{$values->{'FamilyId'}}{$membershipType})) {
-    $skipped->{'Membership not found'}{$membershipType}++;
-    next;
+  if (!exists($assocOrder->{$values->{'PerBillableMemberId'}})) {
+     write_record($memberOrderProblemsWorksheet, $problemRow++, [
+      lookup_t_id($values->{'PerMemberId'}),
+      $values->{'PerMemberId'},
+      $values->{'FamilyId'},
+      lookup_t_id($values->{'PerBillableMemberId'}),
+      $values->{'PerBillableMemberId'},
+      'Order billable ID is not expected to be a billable ID',
+    ]);
+  } elsif (!exists($assocOrder->{$values->{'PerBillableMemberId'}}{$values->{'FamilyId'}})) {
+     write_record($memberOrderProblemsWorksheet, $problemRow++, [
+      lookup_t_id($values->{'PerMemberId'}),
+      $values->{'PerMemberId'},
+      $values->{'FamilyId'},
+      lookup_t_id($values->{'PerBillableMemberId'}),
+      $values->{'PerBillableMemberId'},
+      'Order billable ID does not match family billable ID',
+    ]);
+  } elsif (!exists($assocOrder->{$values->{'PerBillableMemberId'}}{$values->{'FamilyId'}}{$membershipType})) {
+     write_record($memberOrderProblemsWorksheet, $problemRow++, [
+      lookup_t_id($values->{'PerMemberId'}),
+      $values->{'PerMemberId'},
+      $values->{'FamilyId'},
+      lookup_t_id($values->{'PerBillableMemberId'}),
+      $values->{'PerBillableMemberId'},
+      'Order membership type ' . $values->{'MembershipTypeDes'} . ' is not found in family membership types',
+    ]);
   }
 
-  my $assocMembers = $assocOrder->{$values->{'PerBillableMemberId'}}{$values->{'FamilyId'}}{$membershipType};
+  my $members = $dbh->selectcol_arrayref(q{
+    select p_id
+      from members
+      where f_id = ?
+        and membership = ?
+    }, undef, $values->{'FamilyId'}, $membershipType);
 
-  foreach my $assocMember (@{$assocMembers}) {
+  foreach my $assocMember (@{$members}) {
     # Primary members are part of the main order and not added here
     next if ($assocMember eq $values->{'PerBillableMemberId'});
 
@@ -96,29 +126,3 @@ while(my $rowIn = $csv->getline($ordersFile)) {
 
 }
 close($ordersFile);
-print Dumper($skipped) if (%{$skipped});
-
-# $row = 1;
-# process_customer_file(
-#   sub {
-#     my $values = shift;
-
-#     my $familyId = $values->{'FamilyId'};
-
-#     dump($values);
-#     return unless (exists($familyOrders->{$familyId}));
-#     return if ($values->{'PerMemberId'} eq $familyOrders->{$familyId}{'BillingId'});
-    
-#     print Dumper($familyOrders->{$familyId});
-#     print "customer $values->{'PerMemberId'} $familyId\n";
-#     exit;
-
-#     $values->{'OrderNo'} = $familyOrders->{$familyId}{'OrderNo'};
-
-#     write_record(
-#       $worksheet,
-#       $row++,
-#       make_record($values, \@allColumns, $columnMap)
-#     );
-#   }
-# );

@@ -24,6 +24,10 @@ $dbh->do(q{
   delete from name_map
   });
 
+$dbh->do(q{
+  delete from members
+  });
+
 my $cusIndTemplateName = 'DCT_CUS_INDIVIDUAL';
 
 my $cusIndColumnMap = {
@@ -466,6 +470,12 @@ foreach my $memberId (keys %{$members}) {
 
   write_record($cusIndWorksheet, $indRow++, $cusIndRecord);
 
+  $dbh->do(q{
+    insert into members (p_id, f_id, membership, b_id, is_primary)
+      values (?, ?, ?, ?, ?)
+    }, undef, $member->{'PerMemberId'}, $member->{'FamilyId'}, uc $member->{'MembershipType'},
+      $member->{'PerBillableMemberId'}, $isPrimary);
+
   if ($member->{'IsMember'}) {
     # Record this member's billable id and membership type for order assoc
     $csv->print($assocMaster, [
@@ -474,6 +484,7 @@ foreach my $memberId (keys %{$members}) {
       $member->{'PerBillableMemberId'},
       $member->{'MembershipType'},
       ]);
+
   }
 
   unless ($isPrimary) {
