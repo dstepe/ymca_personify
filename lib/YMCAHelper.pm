@@ -523,6 +523,8 @@ sub common_order_fields {
     PerBillableMemberId
     PerMemberId
     StatusDate
+    OrderTotal
+    BalanceDue
   );
 }
 
@@ -556,9 +558,6 @@ sub program_order_fields {
     ProgramStartDate
     ProgramEndDate
     ReceiptNumber
-    ProgramFee
-    FeePaid
-    Balance
     DatePaid
     ItemDescription
     Cycle
@@ -582,8 +581,6 @@ sub donation_order_fields {
     PledgeTypeFrequency
     PledgeNextBillDate
     ReceiptNumber
-    FeePaid
-    Balance
     DatePaid
     ProductCode
     CampaignCode
@@ -602,8 +599,6 @@ sub arbal_order_fields {
   push(@orderFields, qw(
     ItemDescription
     ReceiptNumber
-    FeePaid
-    Balance
     DatePaid
     ProductCode
     Comments

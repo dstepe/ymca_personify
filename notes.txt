@@ -37,3 +37,32 @@
 
 - PRD end dates
   Should be one month but are a year
+
+PRDs should have balance due, other membership orders should not
+  Standard rate for membership type (should be renewal fee)
+    minus
+      10% for PRD A
+      nothing for PRD B
+      20% for PRD C
+
+CUST_EFT_INFO
+  customer id, routing number, bank account number, type of account
+    start date in past, status date in past (same as start)
+  Personify Order ID which draft is attached to
+  Applies to membership orders only
+
+  Order has a billing ID, see if customer ID on TRX EFT is the billable
+    check if membership order billable ids are unique
+
+  Create one EFT entry for each order using the IDs of the billable?
+
+ORDER_DETAIL_CC_INFO
+  credit cards
+    ewallet - customer account as saved cc
+      no order number, cc info (from customer info)
+    epay - goes on order
+      has order number
+  need latest card with latest transaction id
+
+  Memberships, pledges, camps with balance should be here
+

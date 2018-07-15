@@ -352,8 +352,8 @@ process_data_file(
 
     $values->{'TrxInvoiceId'} = $values->{'ReceiptNumber'};
 
-    $values->{'TotalAmount'} = $values->{'FeePaid'};
-    $values->{'PaymentAmount'} = $values->{'TotalAmount'};
+    $values->{'TotalAmount'} = $values->{'OrderTotal'};
+    $values->{'PaymentAmount'} = $values->{'OrderTotal'} - $values->{'BalanceDue'};
 
     $values->{'ParentProductCode'} = $values->{'ProductCode'};
 
@@ -425,8 +425,8 @@ process_data_file(
 
     $values->{'TrxInvoiceId'} = $values->{'ReceiptNumber'};
 
-    $values->{'TotalAmount'} = $values->{'FeePaid'};
-    $values->{'PaymentAmount'} = $values->{'FeePaid'} - $values->{'Balance'};
+    $values->{'TotalAmount'} = $values->{'OrderTotal'};
+    $values->{'PaymentAmount'} = $values->{'OrderTotal'} - $values->{'BalanceDue'};
 
     $values->{'ParentProductCode'} = $values->{'ProductCode'};
 
@@ -498,7 +498,7 @@ process_data_file(
 
     $values->{'TrxInvoiceId'} = $values->{'ReceiptNumber'};
 
-    $values->{'TotalAmount'} = $values->{'Balance'};
+    $values->{'TotalAmount'} = $values->{'BalanceDue'};
     $values->{'PaymentAmount'} = 0;
 
     $values->{'ParentProductCode'} = $values->{'ProductCode'};

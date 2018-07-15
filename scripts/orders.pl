@@ -130,6 +130,8 @@ process_data_file(
     $values->{'OrderNo'} = $orderNo++;
 
     $values->{'RenewMembershipFee'} =~ s/[^0-9\.]//g;
+    $values->{'OrderTotal'} = $values->{'RenewMembershipFee'};
+    $values->{'BalanceDue'} = 0;
 
     ($values->{'AccessDenied'}) = $dbh->selectrow_array(q{
       select access
@@ -185,6 +187,8 @@ while (my($denyForTid, $denyForPid) = $sth->fetchrow_array()) {
     'RenewMembershipFee' => 0,
     'SponsorDiscount' => 0,
     'StatusDate' => $currentDate,
+    'OrderTotal' => 0,
+    'BalanceDue' => 0,
   };
 
   my $record = make_record($values, \@allColumns, $columnMap);
@@ -218,7 +222,7 @@ my $orderHeaderMap = {
   'Branch Name' => 'BranchName',
   'Cycle' => 'Cycle',
   'Date Paid' => 'DatePaid',
-  'Fee Paid' => 'FeePaid',
+  'Fee Paid' => 'OrderTotal',
   'Item Description' => 'ItemDescription',
   'Member ID' => 'MemberId',
   'Program Description' => 'ProgramDescription',
@@ -241,10 +245,9 @@ process_data_file(
     $values->{'OrderDate'} = UnixDate($values->{'DatePaid'}, '%Y-%m-%d');
     $values->{'StatusDate'} = $values->{'OrderDate'};
 
-    $values->{'Balance'} = '';
-    $values->{'ProgramFee'} = '';
+    $values->{'BalanceDue'} = 0;
 
-    $values->{'FeePaid'} =~ s/[\$,]//g;
+    $values->{'OrderTotal'} =~ s/[\$,]//g;
 
     $values->{'ProductCode'} = lookup_product_code('program', $values);
 
@@ -276,12 +279,12 @@ process_data_file(
 $orderHeaderMap = {
   'Branch' => 'BranchName',
   'Class Summary' => 'ItemDescription',
-  'Current Balance' => 'Balance',
+  'Current Balance' => 'BalanceDue',
   'Date Enrolled' => 'DateEnrolled',
   'Participant Id' => 'ParticipantId',
   'Primary Sponsor Id' => 'PrimarySponsorId',
   'Program Description' => 'ProgramDescription',
-  'Program Fee' => 'ProgramFee',
+  'Program Fee' => 'OrderTotal',
   'Session' => 'Session',
   'Start Date' => 'ProgramStartDate',
 };
@@ -310,10 +313,8 @@ process_data_file(
     $values->{'OrderDate'} = UnixDate($values->{'DateEnrolled'}, '%Y-%m-%d');
     $values->{'StatusDate'} = $values->{'OrderDate'};
 
-    $values->{'Balance'} =~ s/[\$,]//g;
-    $values->{'ProgramFee'} =~ s/[\$,]//g;
-
-    $values->{'FeePaid'} = $values->{'ProgramFee'} - $values->{'Balance'};
+    $values->{'OrderTotal'} =~ s/[\$,]//g;
+    $values->{'BalanceDue'} =~ s/[\$,]//g;
 
     $values->{'ProductCode'} = lookup_product_code('camp', $values);
 
@@ -381,9 +382,8 @@ process_data_file(
     $values->{'Session'} = '';
     $values->{'ProgramStartDate'} = '';
     $values->{'ProgramEndDate'} = '';
-    $values->{'ProgramFee'} = '';
-    $values->{'FeePaid'} = $values->{'CampaignPledge'};
-    $values->{'Balance'} = $values->{'CampaignBalance'};
+    $values->{'OrderTotal'} = $values->{'CampaignPledge'};
+    $values->{'BalanceDue'} = $values->{'CampaignBalance'};
     $values->{'DatePaid'} = UnixDate($values->{'PledgeDate'}, '%Y-%m-%d');
     $values->{'Cycle'} = '';
 
@@ -393,8 +393,8 @@ process_data_file(
     $values->{'OrderDate'} = $values->{'PledgeDate'};
     $values->{'StatusDate'} = $values->{'PledgeDate'};
 
-    $values->{'FeePaid'} =~ s/[\$,]//g;
-    $values->{'Balance'} =~ s/[\$,]//g;
+    $values->{'OrderTotal'} =~ s/[\$,]//g;
+    $values->{'BalanceDue'} =~ s/[\$,]//g;
 
     $values->{'Comments'} =~ s/^\s+//;
     $values->{'Comments'} =~ s/\s+$//;
@@ -450,7 +450,7 @@ process_data_file(
 close($donationMaster);
 
 $orderHeaderMap = {
-  'Amount' => 'FeePaid',
+  'Amount' => 'OrderTotal',
   'Amount Due' => 'AmountDue',
   'Branch' => 'BranchName',
   'Date' => 'OrderDate',
@@ -466,7 +466,7 @@ $orderHeaderMap = {
   'Reference #' => 'ReceiptNumber',
   'Sales Tax' => 'SalesTax',
   'Start Date' => 'StartDate',
-  'Total Due' => 'Balance',
+  'Total Due' => 'BalanceDue',
   'Total Pledge Amount Due' => 'TotalPledgeAmountDue',
   'Type' => 'Comments',
 };
@@ -495,8 +495,8 @@ foreach my $arFile (qw( Camps Childcare Counter Memberships Programs)) {
       $values->{'PerMemberId'} = lookup_id($values->{'MemberId'});
       $values->{'PerBillableMemberId'} = $values->{'PerMemberId'};
 
-      $values->{'FeePaid'} =~ s/[\$,]//g;
-      $values->{'Balance'} =~ s/[\$,]//g;
+      $values->{'OrderTotal'} =~ s/[\$,]//g;
+      $values->{'BalanceDue'} =~ s/[\$,]//g;
 
       my $record = make_record($values, \@allColumns, $columnMap);
       write_record($worksheet, $order++, $record);
@@ -575,7 +575,7 @@ sub lookup_campaign_product {
   my $eventType = 'GN';
   $eventType = 'EVENT' if ($values->{'ItemDescription'} =~ /event/i);
 
-  my $fundType = ($values->{'Balance'} > 0) ? 'PL' : 'CA';
+  my $fundType = ($values->{'BalanceDue'} > 0) ? 'PL' : 'CA';
 
   $details->{'ProductCode'} = join('_', $details->{'BranchCode'}, 'ANNUAL', $eventType, $fundType);
 
