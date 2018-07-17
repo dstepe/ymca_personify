@@ -136,6 +136,12 @@ my $cycleDurations = {
   'Quarterly' => '3 months',
 };
 
+my $prdDiscounts = {
+  'PRD A' => '10%',
+  'PRD B' => 0,
+  'PRD C' => '20%',
+};
+
 my $csv = Text::CSV_XS->new ({ auto_diag => 1 });
 
 my $prdRates = {};
@@ -195,7 +201,7 @@ process_data_file(
     $values->{'SubSystem'} = 'MBR';
     $values->{'ParentProductCode'} = 'GMV';
     $values->{'TaxableFlag'} = 'Y';
-    $values->{'TaxCategoryCode'} = 'SALES';
+    $values->{'TaxCategoryCode'} = 'SALES_TAX';
     $values->{'AttendanceFlag'} = 'N';
     $values->{'PayFrequencyCode'} = '';
     $values->{'RequireDiscountCalc'} = 'Y';
@@ -257,16 +263,33 @@ process_data_file(
     }
     
     my $baseFee = $values->{'RenewMembershipFee'} || 0;
+    my $isPrd = 0;
 
     if ($membershipTypeKey =~ /PRD/) {
-      (my $prd = $membershipTypeKey) =~ s/\-.*//;
+      (my $prdMembership = $membershipTypeKey) =~ s/\-.*(PRD .)//;
+      my $prdType = $1;
+
+      $isPrd = 1;
+
       $values->{'RateCode'} = 'Monthly';
       $values->{'PaymentMethod'} = 'Monthly';
-      unless (exists($prdRates->{$prd}{$values->{'RateCode'}})) {
-        print "Missing PRD mapping for '$prd' $values->{'RateCode'}\n";
+      
+      unless (exists($prdRates->{$prdMembership}{$values->{'RateCode'}})) {
+        print "Missing PRD mapping for '$prdMembership' $values->{'RateCode'}\n";
         dd($values);
       }
-      $baseFee = $prdRates->{$prd}{$values->{'RateCode'}};
+      unless (exists($prdDiscounts->{$prdType})) {
+        print "Missing PRD discount for '$prdType'\n";
+        dd($values);
+      }
+
+      $baseFee = $prdRates->{$prdMembership}{$values->{'RateCode'}};
+
+      $values->{'DiscountAmount'} = $prdDiscounts->{$prdType};
+      
+      # print "PRD ($prdMembership) base fee is $baseFee (adjust for $prdType)\n";
+      # dd($values);
+      # exit;
     }
 
     my $orderDate = ParseDate($values->{'OrderDate'});
@@ -291,8 +314,12 @@ process_data_file(
 
     $values->{'TaxPaidAmount'} = sprintf("%.2f", $finalFee * $taxRate);
 
+    # Include tax in total or not?
     $values->{'TotalAmount'} = $finalFee + $values->{'TaxPaidAmount'};
-    $values->{'PaymentAmount'} = $values->{'TotalAmount'};
+    # $values->{'TotalAmount'} = $finalFee;
+    $values->{'PaymentAmount'} = $isPrd ? 0 : $values->{'TotalAmount'};
+
+    dd($values) if ($values->{'PaymentAmount'} < 0);
 
     if ($values->{'AccessDenied'} eq 'Deny') {
       $values->{'ProductCode'} = 'AS_GMV_SO_SO';
@@ -354,6 +381,10 @@ process_data_file(
 
     $values->{'TotalAmount'} = $values->{'OrderTotal'};
     $values->{'PaymentAmount'} = $values->{'OrderTotal'} - $values->{'BalanceDue'};
+
+    if ($values->{'PaymentAmount'} < 0) {
+      print "Order $values->{'OrderNo'} for $values->{'PerMemberId'} ($values->{'ProductCode'}) was $values->{'PaymentAmount'}\n";
+    }
 
     $values->{'ParentProductCode'} = $values->{'ProductCode'};
 
@@ -428,6 +459,8 @@ process_data_file(
     $values->{'TotalAmount'} = $values->{'OrderTotal'};
     $values->{'PaymentAmount'} = $values->{'OrderTotal'} - $values->{'BalanceDue'};
 
+    dd($values) if ($values->{'PaymentAmount'} < 0);
+
     $values->{'ParentProductCode'} = $values->{'ProductCode'};
 
     check_order_errors('Campaign', $values);
@@ -500,6 +533,8 @@ process_data_file(
 
     $values->{'TotalAmount'} = $values->{'BalanceDue'};
     $values->{'PaymentAmount'} = 0;
+
+    dd($values) if ($values->{'PaymentAmount'} < 0);
 
     $values->{'ParentProductCode'} = $values->{'ProductCode'};
 
