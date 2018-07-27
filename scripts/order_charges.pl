@@ -19,182 +19,16 @@ my $templateName = 'DCT_ORDER_DETAIL-32358';
 
 my $columnMap = {
   'ORDER_NO'                           => { 'type' => 'record', 'source' => 'OrderNo' },
-  'ORDER_LINE_NO'                      => { 'type' => 'static', 'source' => '1' },
-  'ORDER_DATE'                         => { 'type' => 'record', 'source' => 'OrderDate' },
-  'SHIP_CUSTOMER_ID'                   => { 'type' => 'record', 'source' => 'ShipCustomerId' },
-  'SHIP_ADDRESS_TYPE_CODE'             => { 'type' => 'static', 'source' => 'HOME' },
-  'INVOICE_NO'                         => { 'type' => 'record', 'source' => 'TrxInvoiceId' },
-  'INVOICE_DATE'                       => { 'type' => 'record', 'source' => 'OrderDate' },
-  'SUBSYSTEM'                          => { 'type' => 'record', 'source' => 'SubSystem' },
-  'PRODUCT_CODE'                       => { 'type' => 'record', 'source' => 'ProductCode' },
-  'PARENT_PRODUCT'                     => { 'type' => 'record', 'source' => 'ParentProductCode' },
-  'LINE_TYPE'                          => { 'type' => 'static', 'source' => 'IP' },
-  'LINE_STATUS_CODE'                   => { 'type' => 'static', 'source' => 'A' },
-  'LINE_STATUS_DATE'                   => { 'type' => 'record', 'source' => 'OrderDate' },
-  'FULFILL_STATUS_CODE'                => { 'type' => 'static', 'source' => 'A' },
-  'FULFILL_STATUS_DATE'                => { 'type' => 'record', 'source' => 'FullfillStatusDate' },
-  'RECOGNITION_STATUS_CODE'            => { 'type' => 'static', 'source' => 'C' },
-  'RATE_STRUCTURE'                     => { 'type' => 'static', 'source' => 'LIST' },
-  'RATE_CODE'                          => { 'type' => 'record', 'source' => 'RateCode' },
-  'TAXABLE_FLAG'                       => { 'type' => 'record', 'source' => 'TaxableFlag' },
-  'TAX_CATEGORY_CODE'                  => { 'type' => 'record', 'source' => 'TaxCategoryCode' },
-  'REQUESTED_QTY'                      => { 'type' => 'static', 'source' => '1' },
-  'ORDER_QTY'                          => { 'type' => 'static', 'source' => '1' },
-  'TOTAL_AMOUNT'                       => { 'type' => 'record', 'source' => 'TotalAmount' },
-  'CYCLE_BEGIN_DATE'                   => { 'type' => 'record', 'source' => 'BeginDate' },
-  'CYCLE_END_DATE'                     => { 'type' => 'record', 'source' => 'EndDate' },
-  'BACK_ISSUE_FLAG'                    => { 'type' => 'record', 'source' => 'BackIssueFlag' },
-  'INITIAL_BEGIN_DATE'                 => { 'type' => 'record', 'source' => 'JoinDate' },
-  'DUE_DATE'                           => { 'type' => 'record', 'source' => 'DueDate' },
-  'RETURNED_QTY'                       => { 'type' => 'static', 'source' => '0' },
-  'PAY_FREQUENCY_CODE'                 => { 'type' => 'record', 'source' => 'PayFrequencyCode' },
-  'PAYOR_CUSTOMER_ID'                  => { 'type' => 'record', 'source' => 'PerBillableMemberId' },
-  'RECEIPT_TYPE'                       => { 'type' => 'static', 'source' => 'CASH' },
-  'RECEIPT_CURRENCY_CODE'              => { 'type' => 'static', 'source' => 'USD' },
-  'RECEIPT_DATE'                       => { 'type' => 'record', 'source' => 'OrderDate' },
-  'XRATE'                              => { 'type' => 'static', 'source' => '1' },
-  'PAYMENT_AMOUNT'                     => { 'type' => 'record', 'source' => 'PaymentAmount' },
-  'RECEIPT_STATUS_CODE'                => { 'type' => 'static', 'source' => 'A' },
-  'RECEIPT_STATUS_DATE'                => { 'type' => 'record', 'source' => 'OrderDate' },
-  'CL_LATE_FEE_FLAG'                   => { 'type' => 'static', 'source' => 'N' },
-  'PRICING_CURRENCY_CODE'              => { 'type' => 'record', 'source' => 'PricingDiscountCode' },
-  'MANUAL_DISCOUNT_FLAG'               => { 'type' => 'static', 'source' => 'N' },
-  'DISCOUNT_CODE'                      => { 'type' => 'record', 'source' => 'DiscountCode' },
-  'ACTUAL_DISCOUNT_AMOUNT'             => { 'type' => 'record', 'source' => 'DiscountAmount' },
-  'ACTUAL_SHIP_AMOUNT'                 => { 'type' => 'static', 'source' => '0' },
-  'ACTUAL_TAX_AMOUNT'                  => { 'type' => 'record', 'source' => 'TaxPaidAmount' },
-  'MARKET_CODE'                        => { 'type' => 'record', 'source' => 'MarketCode' },
-  'CAMPAIGN'                           => { 'type' => 'record', 'source' => 'CampaignCode' },
-  'FUND'                               => { 'type' => 'record', 'source' => 'FundCode' },
-  'APPEAL'                             => { 'type' => 'record', 'source' => 'AppealCode' },
-  'COMMENTS_ON_INVOICE_FLAG'           => { 'type' => 'record', 'source' => 'CommentsOnInvoice' },
-  'DESCRIPTION'                        => { 'type' => 'record', 'source' => 'InvoiceDescription' },
-  'COMMENTS'                           => { 'type' => 'record', 'source' => 'Comments' },
-  'AUTO_PAY_METHOD_CODE'               => { 'type' => 'static', 'source' => 'NONE' },
-  'ATTENDANCE_FLAG'                    => { 'type' => 'record', 'source' => 'AttendanceFlag' },
-  'BLOCK_SALES_TAX_FLAG'               => { 'type' => 'static', 'source' => 'N' },
-  'LINE_COMPLETE_FLAG'                 => { 'type' => 'static', 'source' => 'N' },
-  'RENEW_TO_CC_FLAG'                   => { 'type' => 'static', 'source' => 'N' },
-  'RENEWAL_CREATED_FLAG'               => { 'type' => 'static', 'source' => 'N' },
-  'REQUIRES_DISCOUNT_CALCULATION_FLAG' => { 'type' => 'record', 'source' => 'RequireDiscountCalc' },
-  'TOTAL_DEFERRED_TAX'                 => { 'type' => 'static', 'source' => '0' },
-  'TOTAL_DEPOSIT_TAX'                  => { 'type' => 'static', 'source' => '0' },
 };
 
 my $fndOrderTemplateName = 'DCT_FND_ORDER_DETAIL-67574';
 
 my $fndOrderColumnMap = {
   'ORDER_NO'                               => { 'type' => 'record', 'source' => 'OrderNo' },
-  'ORDER_LINE_NO'                          => { 'type' => 'static', 'source' => '1' },
-  'LIST_DONOR_AS'                          => { 'type' => 'record', 'source' => 'DonorName' },
-  'SOFT_CREDIT_MAST_CUST'                  => { 'type' => 'record', 'source' => 'SoftCreditCustId' },
-  'RESTRICTED_GIFT_FLAG'                   => { 'type' => 'static', 'source' => 'N' },
-  'CREATE_TRANSACTION_FLAG'                => { 'type' => 'static', 'source' => 'Y' },
-  'RECOGNIZED_FLAG'                        => { 'type' => 'static', 'source' => 'Y' },
-  'TRIBUTE_TYPE_CODE'                      => { 'type' => 'record', 'source' => 'TributeTypeCode' },
-  'IN_TRIBUTE_TO_MAST_CUST'                => { 'type' => 'record', 'source' => 'InTributeToCustId' },
-  'ANONYMOUS_FLAG'                         => { 'type' => 'record', 'source' => 'Anonymous' },
-  'GIVE_TRIBUTE_CUSTOMER_CREDIT_FLAG'      => { 'type' => 'static', 'source' => 'N' },
-  'IN_TRIBUTE_TO_LABEL_NAME'               => { 'type' => 'record', 'source' => 'InTributeToCustName' },
-  'RECURRING_GIFT_FLAG'                    => { 'type' => 'static', 'source' => 'N' },
-  'COMPANY_MATCHES_GIFT_FLAG'              => { 'type' => 'static', 'source' => 'N' },
 };
 
 my $fndHardCreditTemplateName = 'DCT_FND_HARD_CREDIT-95863';
 
-my $fndHardCreditColumnMap = {
-  'ORG_ID'                => { 'type' => 'static', 'source' => 'GMVYMCA' },
-  'ORG_UNIT_ID'           => { 'type' => 'static', 'source' => 'GMVYMCA' },
-  'CUSTOMER_ID'           => { 'type' => 'record', 'source' => 'PerMemberId' },
-  'TXN_DATE'              => { 'type' => 'record', 'source' => 'DatePaid' },
-  'PAYMENT_BASED_FLAG'    => { 'type' => 'static', 'source' => 'N' },
-  'PARENT_PRODUCT'        => { 'type' => 'record', 'source' => 'ParentProductCode' },
-  'PRODUCT_CODE'          => { 'type' => 'record', 'source' => 'ProductCode' },
-  'ORDER_NO'              => { 'type' => 'record', 'source' => 'OrderNo' },
-  'ORDER_LINE_NO'         => { 'type' => 'static', 'source' => '1' },
-  'CAMPAIGN'              => { 'type' => 'record', 'source' => 'CampaignCode' },
-  'FUND'                  => { 'type' => 'record', 'source' => 'FundCode' },
-  'APPEAL'                => { 'type' => 'record', 'source' => 'AppealCode' },
-  'SOLICITOR_CUSTOMER_ID' => { 'type' => 'record', 'source' => 'PerSolicitorId' },
-  'CREDIT_AMOUNT'         => { 'type' => 'record', 'source' => 'TotalAmount' },
-  'CREDIT_TYPE_CODE'      => { 'type' => 'static', 'source' => 'Bill' },
-  'ACK_LETTER_CODE'       => { 'type' => 'static', 'source' => 'HISTORY' },
-  'COMMENTS'              => { 'type' => 'record', 'source' => 'Comments' },
-};
-
-my $taxRates = {
-  'Atrium' => .07,
-  'Other' => .065,
-};
-
-my $branchProgramCodes = branch_name_map();
-
-my $cycleDurations = {
-  'Annual' => '1 year',
-  'Monthly E-Pay' => '1 month',
-  'Monthly' => '1 month',
-  'Quarterly' => '3 months',
-};
-
-my $prdDiscounts = {
-  'PRD A' => '10%',
-  'PRD B' => 0,
-  'PRD C' => '20%',
-};
-
-my $csv = Text::CSV_XS->new ({ auto_diag => 1, eol => $/ });
-
-my $prdRates = {};
-my($rateFile, $headers, $totalRows) = open_data_file('data/PrdRates.csv');
-while(my $rowIn = $csv->getline($rateFile)) {
-  my $values = map_values($headers, $rowIn);
-
-  my $type = uc $values->{'Current Type'};
-  $prdRates->{$type} = {
-    'NewType' => $values->{'New Type'},
-  };
-
-  ($prdRates->{$type}{'Monthly'} = $values->{'Monthly Amt'}) =~ s/[\$,]//g;
-  ($prdRates->{$type}{'Annual'} = $values->{'Annual Amt'}) =~ s/[\$,]//g;
-}
-close($rateFile);
-
-my $membershipMap = {};
-my $mappingFile;
-($mappingFile, $headers, $totalRows) = open_data_file('data/MembershipMapping.csv');
-while(my $rowIn = $csv->getline($mappingFile)) {
-  my $values = map_values($headers, $rowIn);
-
-  $membershipMap->{uc $values->{'Description'}}{uc $values->{'Current PaymentMethod'}} = {
-    'Branch' => $values->{'Branch'},
-    'PaymentMethod' => $values->{'Current PaymentMethod'},
-    'ProductCode' => $values->{'Membership Product Code'},
-    'RateCode' => $values->{'Rate Code'},
-    'MarketCode' => $values->{'Market Code'},
-    'DiscountCode' => $values->{'Discount Code'},
-    'DiscountAmount' => $values->{'Discount Amount'},
-    'PurchasingGroup' => $values->{'Purchasing Group'},
-    'Discount' => $values->{'Discount'},
-  };
-}
-close($mappingFile);
-
-my @allColumns = get_template_columns($templateName);
-
-my $workbook = make_workbook($templateName);
-my $worksheet = make_worksheet($workbook, \@allColumns);
-
-my $orderProblemsWorkbook = make_workbook('order_problems');
-our $orderProblemsWorksheet = make_worksheet($orderProblemsWorkbook, 
-  ['Source', 'Bill Id', 'Description', 'Problem']);
-our $orderProblemRow = 1;
-
-open(my $allOrders, '>', 'data/all_orders.csv')
-  or die "Couldn't open data/all_orders.csv: $!";
-$csv->print($allOrders, [all_order_fields()]);
-
-my $denyEndDate = UnixDate('12-31-2099', '%Y-%m-%d');
-my $missingMembershipMap = {};
 my $row = 1;
 process_data_file(
   'data/member_orders.csv',
@@ -340,12 +174,6 @@ process_data_file(
       $row++,
       make_record($values, \@allColumns, $columnMap)
     );
-    $csv->print($allOrders, [
-      $values->{'OrderNo'}, 
-      lookup_t_id($values->{'PerBillableMemberId'}),
-      $values->{'PerBillableMemberId'}
-    ]);
-
   }
 );
 
@@ -405,12 +233,6 @@ process_data_file(
       $row++,
       make_record($values, \@allColumns, $columnMap)
     );
-    $csv->print($allOrders, [
-      $values->{'OrderNo'}, 
-      lookup_t_id($values->{'PerBillableMemberId'}),
-      $values->{'PerBillableMemberId'}
-    ]);
-
   }
 );
 
@@ -486,11 +308,6 @@ process_data_file(
       $row++,
       make_record($values, \@allColumns, $columnMap)
     );
-    $csv->print($allOrders, [
-      $values->{'OrderNo'}, 
-      lookup_t_id($values->{'PerBillableMemberId'}),
-      $values->{'PerBillableMemberId'}
-    ]);
 
     write_record(
       $fndOrderWorksheet,
@@ -566,11 +383,6 @@ process_data_file(
       $row++,
       make_record($values, \@allColumns, $columnMap)
     );
-    $csv->print($allOrders, [
-      $values->{'OrderNo'}, 
-      lookup_t_id($values->{'PerBillableMemberId'}),
-      $values->{'PerBillableMemberId'}
-    ]);
 
   }
 );
@@ -618,12 +430,4 @@ sub check_order_errors {
     ]);
   }
 
-}
-
-sub all_order_fields {
-  return qw(
-    order_number
-    trinexum_id
-    personify_id
-  );
 }
