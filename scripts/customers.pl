@@ -465,7 +465,7 @@ foreach my $memberId (keys %{$members}) {
 
   # determine access allowed
   $member->{'AccessDenied'} = 'Allow';
-  $member->{'AccessDenied'} = 'Deny' if ($member->{'Address1'} =~ /(access|allow|entry)/i);
+  $member->{'AccessDenied'} = 'Deny' if ($member->{'Address1'} =~ /\b(access|allow|entry)\b/i);
   $dbh->do(q{
     insert into access (t_id, p_id, access, reason, order_created)
       values (?, ?, ?, ?, ?)
