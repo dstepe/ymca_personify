@@ -164,7 +164,8 @@ process_data_file(
       lookup_t_id($values->{'PerMemberId'}),
       $values->{'PerMemberId'},
       lookup_t_id($values->{'PerBillableMemberId'}),
-      $values->{'PerBillableMemberId'}
+      $values->{'PerBillableMemberId'},
+      'membership'
     ]);
 
   }
@@ -217,7 +218,8 @@ while (my($denyForTid, $denyForPid) = $sth->fetchrow_array()) {
     lookup_t_id($values->{'PerMemberId'}),
     $values->{'PerMemberId'},
     lookup_t_id($values->{'PerBillableMemberId'}),
-    $values->{'PerBillableMemberId'}
+    $values->{'PerBillableMemberId'},
+    'so_membership'
   ]);
 
 
@@ -300,7 +302,8 @@ process_data_file(
       lookup_t_id($values->{'PerMemberId'}),
       $values->{'PerMemberId'},
       lookup_t_id($values->{'PerBillableMemberId'}),
-      $values->{'PerBillableMemberId'}
+      $values->{'PerBillableMemberId'},
+      'program'
     ]);
 
   },
@@ -373,7 +376,8 @@ process_data_file(
       lookup_t_id($values->{'PerMemberId'}),
       $values->{'PerMemberId'},
       lookup_t_id($values->{'PerBillableMemberId'}),
-      $values->{'PerBillableMemberId'}
+      $values->{'PerBillableMemberId'},
+      'camp'
     ]);
     $csv->print($campOrdersBilling, [
       $values->{'OrderNo'}, 
@@ -494,7 +498,8 @@ process_data_file(
       lookup_t_id($values->{'PerMemberId'}),
       $values->{'PerMemberId'},
       lookup_t_id($values->{'PerBillableMemberId'}),
-      $values->{'PerBillableMemberId'}
+      $values->{'PerBillableMemberId'},
+      'pledge'
     ]);
 
   },
@@ -563,7 +568,8 @@ foreach my $arFile (qw( Camps Childcare Counter Memberships Programs)) {
         lookup_t_id($values->{'PerMemberId'}),
         $values->{'PerMemberId'},
         lookup_t_id($values->{'PerBillableMemberId'}),
-        $values->{'PerBillableMemberId'}
+        $values->{'PerBillableMemberId'},
+        'ar'
       ]);
 
     },
@@ -667,5 +673,6 @@ sub all_order_fields {
     personify_id
     billable_trx_id
     billable_per_id
+    type
   );
 }
