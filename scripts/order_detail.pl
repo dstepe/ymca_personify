@@ -189,10 +189,6 @@ our $orderProblemsWorksheet = make_worksheet($orderProblemsWorkbook,
   ['Source', 'Bill Id', 'Description', 'Problem']);
 our $orderProblemRow = 1;
 
-open(my $allOrders, '>', 'data/all_orders.csv')
-  or die "Couldn't open data/all_orders.csv: $!";
-$csv->print($allOrders, [all_order_fields()]);
-
 my $denyEndDate = UnixDate('12-31-2099', '%Y-%m-%d');
 my $missingMembershipMap = {};
 my $row = 1;
@@ -340,12 +336,6 @@ process_data_file(
       $row++,
       make_record($values, \@allColumns, $columnMap)
     );
-    $csv->print($allOrders, [
-      $values->{'OrderNo'}, 
-      lookup_t_id($values->{'PerBillableMemberId'}),
-      $values->{'PerBillableMemberId'}
-    ]);
-
   }
 );
 
@@ -405,12 +395,6 @@ process_data_file(
       $row++,
       make_record($values, \@allColumns, $columnMap)
     );
-    $csv->print($allOrders, [
-      $values->{'OrderNo'}, 
-      lookup_t_id($values->{'PerBillableMemberId'}),
-      $values->{'PerBillableMemberId'}
-    ]);
-
   }
 );
 
@@ -486,11 +470,6 @@ process_data_file(
       $row++,
       make_record($values, \@allColumns, $columnMap)
     );
-    $csv->print($allOrders, [
-      $values->{'OrderNo'}, 
-      lookup_t_id($values->{'PerBillableMemberId'}),
-      $values->{'PerBillableMemberId'}
-    ]);
 
     write_record(
       $fndOrderWorksheet,
@@ -566,12 +545,6 @@ process_data_file(
       $row++,
       make_record($values, \@allColumns, $columnMap)
     );
-    $csv->print($allOrders, [
-      $values->{'OrderNo'}, 
-      lookup_t_id($values->{'PerBillableMemberId'}),
-      $values->{'PerBillableMemberId'}
-    ]);
-
   }
 );
 
@@ -618,12 +591,4 @@ sub check_order_errors {
     ]);
   }
 
-}
-
-sub all_order_fields {
-  return qw(
-    order_number
-    trinexum_id
-    personify_id
-  );
 }

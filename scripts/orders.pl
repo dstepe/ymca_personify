@@ -84,6 +84,14 @@ my $worksheet = make_worksheet($workbook, \@allColumns);
 
 my $csv = Text::CSV_XS->new ({ auto_diag => 1, eol => $/ });
 
+open(my $allOrders, '>', 'data/all_orders.csv')
+  or die "Couldn't open data/all_orders.csv: $!";
+$csv->print($allOrders, [all_order_fields()]);
+
+open(my $campOrdersBilling, '>', 'data/camp_orders_billing.csv')
+  or die "Couldn't open data/camp_orders_billing.csv: $!";
+$csv->print($campOrdersBilling, [all_order_fields()]);
+
 open(my $orderMaster, '>', 'data/member_orders.csv')
   or die "Couldn't open data/member_orders.csv: $!";
 $csv->print($orderMaster, [member_order_fields()]);
@@ -151,6 +159,14 @@ process_data_file(
 
     $record = make_record($values, [member_order_fields()], make_column_map([member_order_fields()]));
     $csv->print($orderMaster, $record);
+    $csv->print($allOrders, [
+      $values->{'OrderNo'}, 
+      lookup_t_id($values->{'PerMemberId'}),
+      $values->{'PerMemberId'},
+      lookup_t_id($values->{'PerBillableMemberId'}),
+      $values->{'PerBillableMemberId'}
+    ]);
+
   }
 );
 
@@ -196,6 +212,14 @@ while (my($denyForTid, $denyForPid) = $sth->fetchrow_array()) {
 
   $record = make_record($values, [member_order_fields()], make_column_map([member_order_fields()]));
   $csv->print($orderMaster, $record);
+  $csv->print($allOrders, [
+    $values->{'OrderNo'}, 
+    lookup_t_id($values->{'PerMemberId'}),
+    $values->{'PerMemberId'},
+    lookup_t_id($values->{'PerBillableMemberId'}),
+    $values->{'PerBillableMemberId'}
+  ]);
+
 
   $dbh->do(q{
     update access set order_created = ?
@@ -271,6 +295,14 @@ process_data_file(
 
     $record = make_record($values, [program_order_fields()], make_column_map([program_order_fields()]));
     $csv->print($programMaster, $record);
+    $csv->print($allOrders, [
+      $values->{'OrderNo'}, 
+      lookup_t_id($values->{'PerMemberId'}),
+      $values->{'PerMemberId'},
+      lookup_t_id($values->{'PerBillableMemberId'}),
+      $values->{'PerBillableMemberId'}
+    ]);
+
   },
   undef,
   $orderHeaderMap
@@ -336,6 +368,21 @@ process_data_file(
 
     $record = make_record($values, [program_order_fields()], make_column_map([program_order_fields()]));
     $csv->print($programMaster, $record);
+    $csv->print($allOrders, [
+      $values->{'OrderNo'}, 
+      lookup_t_id($values->{'PerMemberId'}),
+      $values->{'PerMemberId'},
+      lookup_t_id($values->{'PerBillableMemberId'}),
+      $values->{'PerBillableMemberId'}
+    ]);
+    $csv->print($campOrdersBilling, [
+      $values->{'OrderNo'}, 
+      lookup_t_id($values->{'PerMemberId'}),
+      $values->{'PerMemberId'},
+      lookup_t_id($values->{'PerBillableMemberId'}),
+      $values->{'PerBillableMemberId'}
+    ]);
+
   },
   undef,
   $orderHeaderMap
@@ -442,6 +489,14 @@ process_data_file(
 
     $record = make_record($values, [donation_order_fields()], make_column_map([donation_order_fields()]));
     $csv->print($donationMaster, $record);
+    $csv->print($allOrders, [
+      $values->{'OrderNo'}, 
+      lookup_t_id($values->{'PerMemberId'}),
+      $values->{'PerMemberId'},
+      lookup_t_id($values->{'PerBillableMemberId'}),
+      $values->{'PerBillableMemberId'}
+    ]);
+
   },
   undef,
   $orderHeaderMap
@@ -503,6 +558,14 @@ foreach my $arFile (qw( Camps Childcare Counter Memberships Programs)) {
 
       $record = make_record($values, [arbal_order_fields()], make_column_map([arbal_order_fields()]));
       $csv->print($arBalMaster, $record);
+      $csv->print($allOrders, [
+        $values->{'OrderNo'}, 
+        lookup_t_id($values->{'PerMemberId'}),
+        $values->{'PerMemberId'},
+        lookup_t_id($values->{'PerBillableMemberId'}),
+        $values->{'PerBillableMemberId'}
+      ]);
+
     },
     undef,
     $orderHeaderMap
@@ -595,4 +658,14 @@ sub make_column_map {
   }
 
   return $map;
+}
+
+sub all_order_fields {
+  return qw(
+    order_number
+    trinexum_id
+    personify_id
+    billable_trx_id
+    billable_per_id
+  );
 }

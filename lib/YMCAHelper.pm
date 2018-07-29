@@ -154,10 +154,10 @@ sub write_record {
   my $record = shift;
 
   for(my $i = 0; $i < scalar(@{$record}); $i++) {
-    if (!defined($record->[$i])) {
+    if (!exists($record->[$i])) {
       print "$i not defined\n";
     }
-    if ($record->[$i] =~ /^0\d/) {
+    if ($record->[$i] && $record->[$i] =~ /^0\d/) {
       $worksheet->write_string($row, $i, $record->[$i]);
     } else {
       $worksheet->write($row, $i, $record->[$i]);
