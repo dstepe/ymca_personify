@@ -290,12 +290,15 @@ process_data_file(
       # print "PRD ($prdMembership) base fee is $baseFee (adjust for $prdType)\n";
       # dd($values);
       # exit;
-    }
 
-    my $orderDate = ParseDate($values->{'OrderDate'});
-    $values->{'BeginDate'} = UnixDate($orderDate, '%Y-%m-%d');
-    my $cycle = $cycleDurations->{$values->{'PaymentMethod'}};    
-    $values->{'EndDate'} = UnixDate(DateCalc(DateCalc($orderDate, '+' . $cycle), '-1 day'), '%Y-%m-%d');
+      $values->{'BeginDate'} = '2018-08-01';
+      $values->{'EndDate'} = '2018-08-31';
+    } else {    
+      my $orderDate = ParseDate($values->{'OrderDate'});
+      $values->{'BeginDate'} = UnixDate($orderDate, '%Y-%m-%d');
+      my $cycle = $cycleDurations->{$values->{'PaymentMethod'}};    
+      $values->{'EndDate'} = UnixDate(DateCalc(DateCalc($orderDate, '+' . $cycle), '-1 day'), '%Y-%m-%d');
+    }
 
     $values->{'DiscountAmount'} = 0;
     if ($discount =~ /\%/) {
