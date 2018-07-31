@@ -38,10 +38,6 @@ my @allColumns = get_template_columns($templateName);
 my $workbook = make_workbook($templateName);
 my $worksheet = make_worksheet($workbook, \@allColumns);
 
-# load all order information
-# while processing eft rows, see if member has a membership order
-# collect all eft rows and associated orders
-# use separate loop to write unique eft records with multiple orders
 my $csv = Text::CSV_XS->new ({ auto_diag => 1, eol => $/ });
 
 my $orders = {};
